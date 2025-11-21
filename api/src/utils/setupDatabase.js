@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT,
   price DECIMAL(10, 2) NOT NULL,
   stock_quantity INTEGER NOT NULL DEFAULT 0,
+  image_url TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -68,17 +69,17 @@ INSERT INTO users (email, name) VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- Seed products
-INSERT INTO products (sku, name, description, price, stock_quantity) VALUES
-  ('LAPTOP-001', 'Premium Laptop', 'High-performance laptop with 16GB RAM', 1299.99, 50),
-  ('PHONE-001', 'Smartphone Pro', 'Latest smartphone with 5G capability', 899.99, 100),
-  ('TABLET-001', 'Tablet Plus', '10-inch tablet with stylus support', 599.99, 75),
-  ('HEADPHONE-001', 'Wireless Headphones', 'Noise-canceling over-ear headphones', 249.99, 200),
-  ('WATCH-001', 'Smart Watch', 'Fitness tracking smartwatch', 349.99, 150),
-  ('KEYBOARD-001', 'Mechanical Keyboard', 'RGB backlit mechanical keyboard', 129.99, 80),
-  ('MOUSE-001', 'Gaming Mouse', 'Wireless gaming mouse with RGB', 79.99, 120),
-  ('MONITOR-001', '4K Monitor', '27-inch 4K IPS display', 499.99, 40),
-  ('SPEAKER-001', 'Bluetooth Speaker', 'Portable waterproof speaker', 89.99, 180),
-  ('CAMERA-001', 'Digital Camera', 'Mirrorless camera with 24MP sensor', 1499.99, 30)
+INSERT INTO products (sku, name, description, price, stock_quantity, image_url) VALUES
+  ('LAPTOP-001', 'Premium Laptop', 'High-performance laptop with 16GB RAM', 1299.99, 50, 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=500&h=500&fit=crop'),
+  ('PHONE-001', 'Smartphone Pro', 'Latest smartphone with 5G capability', 899.99, 100, 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500&h=500&fit=crop'),
+  ('TABLET-001', 'Tablet Plus', '10-inch tablet with stylus support', 599.99, 75, 'https://images.unsplash.com/photo-1561154464-82e9adf32764?w=500&h=500&fit=crop'),
+  ('HEADPHONE-001', 'Wireless Headphones', 'Noise-canceling over-ear headphones', 249.99, 200, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&h=500&fit=crop'),
+  ('WATCH-001', 'Smart Watch', 'Fitness tracking smartwatch', 349.99, 150, 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&h=500&fit=crop'),
+  ('KEYBOARD-001', 'Mechanical Keyboard', 'RGB backlit mechanical keyboard', 129.99, 80, 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&h=500&fit=crop'),
+  ('MOUSE-001', 'Gaming Mouse', 'Wireless gaming mouse with RGB', 79.99, 120, 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=500&h=500&fit=crop'),
+  ('MONITOR-001', '4K Monitor', '27-inch 4K IPS display', 499.99, 40, 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=500&h=500&fit=crop'),
+  ('SPEAKER-001', 'Bluetooth Speaker', 'Portable waterproof speaker', 89.99, 180, 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=500&h=500&fit=crop'),
+  ('CAMERA-001', 'Digital Camera', 'Mirrorless camera with 24MP sensor', 1499.99, 30, 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&h=500&fit=crop')
 ON CONFLICT (sku) DO NOTHING;
 `;
 

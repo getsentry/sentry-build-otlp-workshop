@@ -27,7 +27,7 @@ router.get(
 
     // Cache miss - fetch from database
     const result = await query(`
-      SELECT id, sku, name, description, price, stock_quantity, created_at
+      SELECT id, sku, name, description, price, stock_quantity, image_url, created_at
       FROM products
       ORDER BY name
     `);
@@ -76,7 +76,7 @@ router.get(
 
     // Fetch from database
     const result = await query(
-      `SELECT id, sku, name, description, price, stock_quantity, created_at
+      `SELECT id, sku, name, description, price, stock_quantity, image_url, created_at
        FROM products
        WHERE id = $1`,
       [productId]
@@ -125,7 +125,7 @@ router.get(
         span.setAttribute('search.query', searchQuery);
 
         const result = await query(
-          `SELECT id, sku, name, description, price, stock_quantity
+          `SELECT id, sku, name, description, price, stock_quantity, image_url
            FROM products
            WHERE name ILIKE $1 OR description ILIKE $1
            ORDER BY name`,

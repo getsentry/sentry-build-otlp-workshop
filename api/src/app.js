@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import { initializeRedis } from './services/cache.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
@@ -12,6 +13,12 @@ import ordersRouter from './routes/orders.js';
 dotenv.config();
 
 const app = express();
+
+// CORS configuration
+app.use(cors({
+  origin: 'http://localhost:5174',
+  credentials: true
+}));
 
 // Middleware
 app.use(express.json());
