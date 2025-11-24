@@ -41,7 +41,7 @@ async function startServer() {
       });
 
       // Close database connections, Redis, etc.
-      // The instrumentation.js SIGTERM handler will close OTEL SDK
+      // The instrument-otel.js SIGTERM handler will close OTEL SDK
 
       setTimeout(() => {
         console.error('❌ Forceful shutdown after timeout');

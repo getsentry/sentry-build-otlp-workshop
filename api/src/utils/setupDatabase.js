@@ -75,12 +75,14 @@ INSERT INTO products (sku, name, description, price, stock_quantity, image_url) 
   ('TABLET-001', 'Tablet Plus', '10-inch tablet with stylus support', 599.99, 75, 'https://images.unsplash.com/photo-1561154464-82e9adf32764?w=500&h=500&fit=crop'),
   ('HEADPHONE-001', 'Wireless Headphones', 'Noise-canceling over-ear headphones', 249.99, 200, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&h=500&fit=crop'),
   ('WATCH-001', 'Smart Watch', 'Fitness tracking smartwatch', 349.99, 150, 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&h=500&fit=crop'),
-  ('KEYBOARD-001', 'Mechanical Keyboard', 'RGB backlit mechanical keyboard', 129.99, 80, 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&h=500&fit=crop'),
-  ('MOUSE-001', 'Gaming Mouse', 'Wireless gaming mouse with RGB', 79.99, 120, 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=500&h=500&fit=crop'),
-  ('MONITOR-001', '4K Monitor', '27-inch 4K IPS display', 499.99, 40, 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=500&h=500&fit=crop'),
-  ('SPEAKER-001', 'Bluetooth Speaker', 'Portable waterproof speaker', 89.99, 180, 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=500&h=500&fit=crop'),
+  ('KEYBOARD-001', 'Mechanical Keyboard', 'RGB backlit mechanical keyboard', 129.99, 80, 'https://images.unsplash.com/photo-1595225476474-87563907a212?w=800&h=600'),
+  ('MOUSE-001', 'Gaming Mouse', 'Wireless gaming mouse with RGB', 79.99, 120, 'https://images.unsplash.com/photo-1563297007-0686b7003af7?w=800&h=600'),
+  ('MONITOR-001', '4K Monitor', '27-inch 4K IPS display', 499.99, 40, 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=800&h=600'),
+  ('SPEAKER-001', 'Bluetooth Speaker', 'Portable waterproof speaker', 89.99, 180, 'https://images.unsplash.com/photo-1589492477829-5e65395b66cc?w=800&h=600'),
   ('CAMERA-001', 'Digital Camera', 'Mirrorless camera with 24MP sensor', 1499.99, 30, 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&h=500&fit=crop')
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET
+  image_url = EXCLUDED.image_url,
+  updated_at = CURRENT_TIMESTAMP;
 `;
 
 async function setupDatabase() {

@@ -1,183 +1,157 @@
-# Quick Start Guide
+# Quick Start
 
-Get the OpenTelemetry E-commerce API running in 5 minutes!
+Get running in 5 minutes.
 
-## Step 1: Install Dependencies
+## Prerequisites
+
+- Node.js 18+
+- Free Neon account (https://neon.tech)
+- Sentry project with OTLP enabled
+
+## Setup
+
+### 1. Install
 
 ```bash
 npm install
 ```
 
-## Step 2: Configure Sentry
+### 2. Configure Environment
 
-1. Copy the environment file:
+**Option A: Auto-setup with neondb (Recommended)**
 
 ```bash
+# Create .env from example
 cp .env.example .env
+
+# Auto-create Neon database and add DATABASE_URL to .env
+npx neondb -y
 ```
 
-2. Get your Sentry OTLP credentials:
+The `neondb` command will open your browser to login/create a Neon account, create a PostgreSQL database, and automatically add the `DATABASE_URL` to your `.env` file.
 
-   - Go to [Sentry](https://sentry.io)
-   - Navigate to your project
-   - Go to **Settings** → **Client Keys (DSN)**
-   - Copy your **Public Key** and **Project ID**
-
-3. Edit `.env` and update these lines:
+**Option B: Manual setup**
 
 ```bash
-# Replace YOUR-ORG-ID, YOUR-PROJECT-ID, and YOUR_PUBLIC_KEY
-OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://YOUR-ORG-ID.ingest.us.sentry.io/api/YOUR-PROJECT-ID/integration/otlp/v1/traces
-OTEL_EXPORTER_OTLP_TRACES_HEADERS="x-sentry-auth=sentry sentry_key=YOUR_PUBLIC_KEY"
+# Create .env from example
+cp .env.example .env
+
+# Get DATABASE_URL from Neon Console: https://console.neon.tech
+# Projects > Your Project > Connection Details
+# Add it to .env manually
 ```
 
-**Example:**
+### 3. Add Sentry Configuration
+
+Edit `.env` and add your Sentry OTLP endpoints (get from Sentry: Project Settings > Client Keys):
 
 ```bash
-OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://o4509013641854976.ingest.us.sentry.io/api/4510366124343296/integration/otlp/v1/traces
-OTEL_EXPORTER_OTLP_TRACES_HEADERS="x-sentry-auth=sentry sentry_key=abc123def456"
+# Update these values in .env
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://YOUR-ORG.ingest.sentry.io/api/PROJECT-ID/integration/otlp/v1/traces
+OTEL_EXPORTER_OTLP_TRACES_HEADERS=x-sentry-auth=sentry sentry_key=YOUR_PUBLIC_KEY
+
+# Optional: For logs
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://YOUR-ORG.ingest.sentry.io/api/PROJECT-ID/integration/otlp/v1/logs
+OTEL_EXPORTER_OTLP_LOGS_HEADERS=x-sentry-auth=sentry sentry_key=YOUR_PUBLIC_KEY
 ```
 
-## Step 3: Start Infrastructure
-
-```bash
-docker compose up -d
-```
-
-**Note:** If you have an older Docker installation, use `docker-compose up -d` instead.
-
-Wait 10 seconds for PostgreSQL and Redis to be ready.
-
-## Step 4: Setup Database
+### 4. Initialize Database
 
 ```bash
 npm run db:setup
 ```
 
-You should see:
+Creates tables and seeds sample data.
 
-```
-✅ Schema created successfully
-✅ Database seeded successfully
-✨ Database setup complete!
-```
-
-## Step 5: Start the Server
+### 5. Start
 
 ```bash
 npm start
 ```
 
-You should see:
+You should see `📡 Mode: DIRECT` and `📡 Server listening on port 3000`.
 
-```
-📡 Mode: DIRECT
-📡 Exporting to: https://your-org.ingest.us.sentry.io/...
-🔭 OpenTelemetry instrumentation initialized
-✅ Redis connected
-🚀 OpenTelemetry E-commerce API Server
-📡 Server listening on port 3000
-```
-
-**Check your current mode anytime:**
+### 6. Test
 
 ```bash
-npm run mode:status
-```
-
-## Step 6: Test It!
-
-Open a new terminal and run:
-
-```bash
-# Quick API test
-npm run test:api
-
-# Or manually:
+# Quick test
 curl http://localhost:3000/api/products
 
-# Run load test (generates ~40 traces with realistic e-commerce scenarios:
-# product fetches, order creation, payment failures, inventory errors, etc)
+# Or run load test (generates ~40 traces)
 npm test
 ```
 
-## Step 7: Check Sentry
+### 7. View in Sentry
 
-1. Go to your Sentry project
-2. Navigate to **Explore** > **Traces** or **Logs**
-3. You should see traces and logs from your API calls!
+Go to your Sentry project → **Explore** → **Traces**
 
-## Common Issues
+## Switching Modes
 
-**"Docker compose not found"**
-→ Install Docker Desktop from https://docker.com/
-
-**"Port 5432 already in use"**
-→ You have PostgreSQL running locally. Stop it or change the port in docker-compose.yml
-
-**"Not seeing traces in Sentry"**
-→ Double-check your OTLP endpoint URL and auth header in .env
-
-**"Database connection error"**
-→ Wait 10-20 seconds after `docker compose up` for PostgreSQL to fully start
-
-## Switching Export Modes
-
-You can send telemetry directly to Sentry, or through an OpenTelemetry Collector.
-
-**Check current mode:**
+### Check Current Mode
 
 ```bash
 npm run mode:status
 ```
 
-### Switch to Collector Mode
+### Direct Mode (Default)
 
-**Prerequisites:** Same as Steps 1-4 above (infrastructure and database must be running)
-
-```bash
-# 1. Switch mode
-npm run mode:collector
-
-# 2. Add to .env:
-#    OTEL_EXPORTER_OTLP_ENDPOINT=https://YOUR-ORG-ID.ingest.us.sentry.io
-#    SENTRY_AUTH_HEADER=sentry_key=YOUR_PUBLIC_KEY,sentry_version=7
-
-# 3. Start collector
-npm run collector:start
-
-# 4. Start app
-npm start
-```
-
-Look for: `"📡 Mode: COLLECTOR"`
-
-**Test it:** Use the same commands from Step 6:
-
-```bash
-npm run test:api
-npm test
-```
-
-Traces now flow: App → Collector → Sentry (check both!)
-
-### Switch to Direct Mode
+App sends directly to Sentry.
 
 ```bash
 npm run mode:direct
 npm start
 ```
 
-Look for: `"📡 Mode: DIRECT"`
+### Collector Mode
 
-## What's Next?
+App sends to local OpenTelemetry Collector, which forwards to Sentry.
 
-- Switch between direct and collector modes
-- Explore the API endpoints (see README.md)
-- Check out the manual instrumentation in `src/services/`
-- Modify the code and see traces update in real-time
-- Try triggering errors to see how they appear in Sentry
+```bash
+# Add to .env if not present:
+OTEL_EXPORTER_OTLP_ENDPOINT=https://YOUR-ORG.ingest.sentry.io
+SENTRY_AUTH_HEADER=sentry_key=YOUR_PUBLIC_KEY,sentry_version=7
 
-## Need Help?
+# Switch mode
+npm run mode:collector
 
-Check the full README.md for detailed documentation.
+# Start collector (auto-downloads binary ~100MB on first run)
+npm run collector:start
+
+# Start app
+npm start
+```
+
+**Collector commands:**
+
+```bash
+npm run collector:start   # Start
+npm run collector:stop    # Stop
+npm run collector:health  # Health check
+npm run collector:logs    # View logs
+```
+
+## Troubleshooting
+
+**Database connection error**
+
+- Check `DATABASE_URL` includes `?sslmode=require`
+- Verify Neon project is active at https://console.neon.tech
+
+**No traces in Sentry**
+
+- Verify OTLP endpoint URL is correct
+- Check Sentry public key in headers
+- Enable debug logging (see README.md)
+
+**Port already in use**
+
+- Change `PORT=3001` in .env
+
+## Next Steps
+
+See [README.md](README.md) for:
+
+- API endpoints
+- Manual instrumentation examples
+- Error scenarios
+- Development tips

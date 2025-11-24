@@ -31,10 +31,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Docker volumes
-postgres-data/
-redis-data/
-
 # Test coverage
 coverage/
 .nyc_output/
+
+# Documentation
+docs/

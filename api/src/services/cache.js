@@ -1,31 +1,33 @@
-import { createClient } from 'redis';
 import { withSpan, addEvent } from '../utils/tracer.js';
 
-let redisClient = null;
+/**
+ * In-memory cache store
+ * Structure: { key: { value: any, expiresAt: number } }
+ */
+const cacheStore = new Map();
 
 /**
- * Initialize Redis client
+ * Initialize cache (no-op for in-memory, kept for API compatibility)
  */
 export async function initializeRedis() {
-  if (redisClient) {
-    return redisClient;
-  }
-
-  redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-  });
-
-  redisClient.on('error', (err) => {
-    console.error('❌ Redis Client Error', err);
-  });
-
-  redisClient.on('connect', () => {
-    console.log('✅ Redis connected');
-  });
-
-  await redisClient.connect();
-  return redisClient;
+  console.log('✅ In-memory cache initialized');
+  return true;
 }
+
+/**
+ * Clean up expired entries periodically
+ */
+function cleanupExpired() {
+  const now = Date.now();
+  for (const [key, entry] of cacheStore.entries()) {
+    if (entry.expiresAt && entry.expiresAt < now) {
+      cacheStore.delete(key);
+    }
+  }
+}
+
+// Run cleanup every 60 seconds
+setInterval(cleanupExpired, 60000);
 
 /**
  * Get value from cache with instrumentation
@@ -37,19 +39,27 @@ export async function get(key) {
       span.setAttributes({
         'cache.key': key,
         'cache.operation': 'get',
+        'cache.type': 'in-memory',
       });
 
-      const value = await redisClient.get(key);
+      const entry = cacheStore.get(key);
+      const now = Date.now();
 
-      if (value) {
+      // Check if exists and not expired
+      if (entry && (!entry.expiresAt || entry.expiresAt > now)) {
         addEvent('cache.hit', { key });
         span.setAttribute('cache.hit', true);
-      } else {
-        addEvent('cache.miss', { key });
-        span.setAttribute('cache.hit', false);
+        return entry.value;
       }
 
-      return value ? JSON.parse(value) : null;
+      // Remove if expired
+      if (entry && entry.expiresAt && entry.expiresAt <= now) {
+        cacheStore.delete(key);
+      }
+
+      addEvent('cache.miss', { key });
+      span.setAttribute('cache.hit', false);
+      return null;
     }
   );
 }
@@ -65,10 +75,11 @@ export async function set(key, value, ttlSeconds = 300) {
         'cache.key': key,
         'cache.operation': 'set',
         'cache.ttl': ttlSeconds,
+        'cache.type': 'in-memory',
       });
 
-      const serialized = JSON.stringify(value);
-      await redisClient.setEx(key, ttlSeconds, serialized);
+      const expiresAt = Date.now() + (ttlSeconds * 1000);
+      cacheStore.set(key, { value, expiresAt });
 
       addEvent('cache.stored', { key, ttl: ttlSeconds });
       return true;
@@ -86,11 +97,14 @@ export async function del(key) {
       span.setAttributes({
         'cache.key': key,
         'cache.operation': 'delete',
+        'cache.type': 'in-memory',
       });
 
-      const result = await redisClient.del(key);
-      addEvent('cache.deleted', { key, existed: result > 0 });
-      return result;
+      const existed = cacheStore.has(key);
+      cacheStore.delete(key);
+
+      addEvent('cache.deleted', { key, existed });
+      return existed ? 1 : 0;
     }
   );
 }
@@ -105,36 +119,36 @@ export async function deletePattern(pattern) {
       span.setAttributes({
         'cache.pattern': pattern,
         'cache.operation': 'delete_pattern',
+        'cache.type': 'in-memory',
       });
 
-      const keys = await redisClient.keys(pattern);
+      // Convert Redis pattern to regex (basic support for *)
+      const regexPattern = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
 
-      if (keys.length > 0) {
-        const result = await redisClient.del(keys);
-        addEvent('cache.pattern_deleted', { pattern, count: result });
-        return result;
+      let count = 0;
+      for (const key of cacheStore.keys()) {
+        if (regexPattern.test(key)) {
+          cacheStore.delete(key);
+          count++;
+        }
       }
 
-      return 0;
+      addEvent('cache.pattern_deleted', { pattern, count });
+      return count;
     }
   );
 }
 
 /**
- * Check Redis connection health
+ * Check cache health
  */
 export async function checkHealth() {
   try {
-    if (!redisClient || !redisClient.isOpen) {
-      return {
-        status: 'unhealthy',
-        error: 'Redis client not connected',
-      };
-    }
-
-    await redisClient.ping();
+    const size = cacheStore.size;
     return {
       status: 'healthy',
+      size,
+      type: 'in-memory',
     };
   } catch (error) {
     return {
@@ -145,13 +159,10 @@ export async function checkHealth() {
 }
 
 /**
- * Close Redis connection
+ * Close cache (clear for in-memory)
  */
 export async function close() {
-  if (redisClient) {
-    await redisClient.quit();
-    redisClient = null;
-  }
+  cacheStore.clear();
 }
 
 export default {

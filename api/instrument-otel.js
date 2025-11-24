@@ -34,7 +34,7 @@ function parseHeaders(headerString) {
 }
 
 const resource = new Resource({
-  [SEMRESATTRS_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'otel-ecommerce-api',
+  [SEMRESATTRS_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'sentry-build-otlp-workshop-api',
   [SEMRESATTRS_SERVICE_VERSION]: packageJson.version,
   [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
 });

@@ -1,7 +1,7 @@
 import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 
 // Get the tracer for manual instrumentation
-const tracer = trace.getTracer('otel-ecommerce-api', '1.0.0');
+const tracer = trace.getTracer('sentry-build-otlp-workshop-api', '1.0.0');
 
 /**
  * Helper function to create and execute a span with automatic error handling

@@ -28,7 +28,7 @@ const SeverityNumber = {
 class Logger {
   constructor() {
     try {
-      this.logger = logsAPI.getLogger('otel-ecommerce-api', '1.0.0');
+      this.logger = logsAPI.getLogger('sentry-build-otlp-workshop-api', '1.0.0');
       console.log('✅ OpenTelemetry Logger initialized');
     } catch (error) {
       console.warn('⚠️  OpenTelemetry Logs API not available:', error.message);
@@ -52,7 +52,7 @@ class Logger {
       body: message,
       attributes: {
         ...attributes,
-        'service.name': 'otel-ecommerce-api',
+        'service.name': 'sentry-build-otlp-workshop-api',
       },
       timestamp: Date.now(),
     };

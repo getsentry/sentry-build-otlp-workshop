@@ -5,9 +5,9 @@ dotenv.config();
 
 async function clearCache() {
   try {
-    console.log('🗑️  Clearing Redis cache...');
+    console.log('🗑️  Clearing in-memory cache...');
 
-    // Initialize Redis connection
+    // Initialize cache
     await initializeRedis();
 
     // Clear all product-related cache keys
@@ -19,7 +19,7 @@ async function clearCache() {
 
     console.log('✨ Cache cleared successfully!');
 
-    // Close connection
+    // Close/clear cache
     await close();
   } catch (error) {
     console.error('❌ Error clearing cache:', error);

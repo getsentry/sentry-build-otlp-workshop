@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:opentelemetry.io)",
+      "WebFetch(domain:docs.sentry.io)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl:*)",
+      "Bash(node -e:*)",
+      "Bash(cat:*)",
+      "Bash(npm run collector:stop:*)",
+      "Bash(npm run collector:start:*)",
+      "Bash(npm run collector:health:*)",
+      "Bash(npm run collector:products:*)",
+      "Bash(npm run collector:orders:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

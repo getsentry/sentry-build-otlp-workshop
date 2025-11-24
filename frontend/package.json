@@ -1,5 +1,5 @@
 {
-  "name": "otel-ecommerce-frontend",
+  "name": "sentry-build-otlp-workshop-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",

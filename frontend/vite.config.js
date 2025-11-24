@@ -6,8 +6,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react(), sentryVitePlugin({
     org: "pj-sentry-global",
-    project: "otel-ecommerce-frontend"
+    project: "sentry-build-otlp-workshop-frontend"
   })],
+
+  server: {
+    port: 5173,
+    strictPort: true, // Fail if port is already in use instead of trying next port
+  },
 
   build: {
     sourcemap: true

@@ -16,7 +16,7 @@ const app = express();
 
 // CORS configuration
 app.use(cors({
-  origin: 'http://localhost:5174',
+  origin: 'http://localhost:5173',
   credentials: true
 }));
 
@@ -71,7 +71,7 @@ export async function initializeApp() {
   try {
     console.log('🚀 Initializing application services...');
 
-    // Initialize Redis
+    // Initialize in-memory cache
     await initializeRedis();
 
     console.log('✅ All services initialized successfully');
