@@ -3,6 +3,7 @@ import { query } from '../services/database.js';
 import * as cache from '../services/cache.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { withSpan, addEvent } from '../utils/tracer.js';
+import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -19,6 +20,10 @@ router.get(
     const cached = await cache.get(cacheKey);
     if (cached) {
       addEvent('products.served_from_cache', { count: cached.length });
+      logger.info('Products fetched from cache', {
+        'products.count': cached.length,
+        'products.source': 'cache',
+      });
       return res.json({
         products: cached,
         cached: true,
@@ -38,6 +43,10 @@ router.get(
     await cache.set(cacheKey, products, 300);
 
     addEvent('products.served_from_database', { count: products.length });
+    logger.info('Products fetched from database', {
+      'products.count': products.length,
+      'products.source': 'database',
+    });
 
     res.json({
       products,
