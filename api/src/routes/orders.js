@@ -44,6 +44,12 @@ router.post(
           items_count: items.length,
         });
 
+        logger.info('Order creation started', {
+          'order.user_id': userId,
+          'order.items_count': items.length,
+          'order.payment_method': paymentMethod,
+        });
+
         // Step 1: Validate user exists
         const userResult = await query('SELECT id, email, name FROM users WHERE id = $1', [
           userId,
@@ -354,6 +360,11 @@ router.get(
     addEvent('orders.fetched_for_user', {
       user_id: userId,
       count: result.rows.length,
+    });
+
+    logger.info('Orders fetched for user', {
+      'user.id': userId,
+      'orders.count': result.rows.length,
     });
 
     res.json({

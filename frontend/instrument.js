@@ -12,8 +12,9 @@ Sentry.init({
     // https://docs.sentry.io/platforms/javascript/guides/react/configuration/integrations/react-router/
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration(),
+    Sentry.consoleLoggingIntegration(['error', 'warn', 'info', 'debug', 'log']),
   ],
-  
+  enableLogs: true,
   // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
   tracesSampleRate: 1.0,
   // Set `tracePropagationTargets` to control for which URLs trace propagation should be enabled
