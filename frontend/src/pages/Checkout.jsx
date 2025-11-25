@@ -33,7 +33,19 @@ export default function Checkout({ cartItems, onUpdateQuantity, onRemove, onClea
         paymentMethod,
       };
 
+      console.log('Creating order', {
+        itemsCount: orderData.items.length,
+        totalAmount: total,
+        paymentMethod,
+      });
+
       const result = await createOrder(orderData);
+
+      console.log('Order created successfully', {
+        orderId: result.order?.id,
+        totalAmount: total,
+        itemsCount: orderData.items.length,
+      });
 
       setSuccess(true);
       onClearCart();
@@ -43,6 +55,11 @@ export default function Checkout({ cartItems, onUpdateQuantity, onRemove, onClea
       }, 3000);
 
     } catch (err) {
+      console.error('Order creation failed', {
+        error: err.message,
+        itemsCount: cartItems.length,
+        totalAmount: total,
+      });
       setError(err.message);
     } finally {
       setLoading(false);

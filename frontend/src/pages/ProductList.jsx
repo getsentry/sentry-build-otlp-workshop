@@ -17,7 +17,14 @@ export default function ProductList() {
       setError(null);
       const data = await getProducts();
       setProducts(data.products || []);
+      console.log('Products loaded successfully', {
+        productsCount: data.products?.length || 0,
+        cached: data.cached || false,
+      });
     } catch (err) {
+      console.error('Failed to load products', {
+        error: err.message,
+      });
       setError(err.message);
     } finally {
       setLoading(false);
