@@ -13,12 +13,25 @@ function App() {
     setCartItems(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
+        console.log('Updated cart item quantity', {
+          productId: product.id,
+          productName: product.name,
+          previousQuantity: existing.quantity,
+          addedQuantity: product.quantity,
+          newQuantity: existing.quantity + product.quantity,
+        });
         return prev.map(item =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + product.quantity }
             : item
         );
       }
+      console.log('Added item to cart', {
+        productId: product.id,
+        productName: product.name,
+        quantity: product.quantity,
+        price: product.price,
+      });
       return [...prev, product];
     });
   }

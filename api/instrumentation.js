@@ -90,6 +90,10 @@ const sdk = new NodeSDK({
       '@opentelemetry/instrumentation-http': {
         enabled: true,
         ignoreIncomingPaths: ['/health'],
+        ignoreIncomingRequestHook: (req) => {
+          // Ignore OPTIONS requests (CORS preflight)
+          return req.method === 'OPTIONS';
+        },
       },
       '@opentelemetry/instrumentation-express': {
         enabled: true,
