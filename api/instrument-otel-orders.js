@@ -7,7 +7,6 @@ import { Resource } from '@opentelemetry/resources';
 import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } from '@opentelemetry/semantic-conventions';
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
 import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
-import { PeriodicExportingMetricReader, ConsoleMetricExporter } from '@opentelemetry/sdk-metrics';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -19,39 +18,24 @@ const __dirname = dirname(__filename);
 
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
-// Parse header string format: "key1=value1,key2=value2"
-function parseHeaders(headerString) {
-  if (!headerString) return {};
-  
-  const headers = {};
-  headerString.split(',').forEach(pair => {
-    const [key, ...valueParts] = pair.trim().split('=');
-    if (key && valueParts.length > 0) {
-      headers[key] = valueParts.join('=').trim();
-    }
-  });
-  return headers;
-}
-
 const resource = new Resource({
-  [SEMRESATTRS_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'sentry-build-otlp-workshop-api',
+  [SEMRESATTRS_SERVICE_NAME]: 'orders-service',
   [SEMRESATTRS_SERVICE_VERSION]: packageJson.version,
   [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
 });
 
-// Direct mode: App sends directly to Sentry (single project)
+// Multi-service mode always uses collector for routing
 const traceExporter = new OTLPTraceExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-  headers: parseHeaders(process.env.OTEL_EXPORTER_OTLP_TRACES_HEADERS),
+  url: 'http://localhost:4318/v1/traces',
 });
 
 const logExporter = new OTLPLogExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
-  headers: parseHeaders(process.env.OTEL_EXPORTER_OTLP_LOGS_HEADERS),
+  url: 'http://localhost:4318/v1/logs',
 });
 
-console.log('📡 Mode: DIRECT (SDK → Sentry)');
-console.log('📡 Exporting to:', process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT);
+console.log('📡 Mode: MULTI-SERVICE (via COLLECTOR)');
+console.log('📡 Service: orders-service');
+console.log('📡 Exporting to: http://localhost:4318');
 
 // Initialize OpenTelemetry SDK
 const sdk = new NodeSDK({
@@ -61,13 +45,12 @@ const sdk = new NodeSDK({
   instrumentations: [
     getNodeAutoInstrumentations({
       '@opentelemetry/instrumentation-fs': {
-        enabled: false, // Too noisy
+        enabled: false,
       },
       '@opentelemetry/instrumentation-http': {
         enabled: true,
         ignoreIncomingPaths: ['/health'],
         ignoreIncomingRequestHook: (req) => {
-          // Ignore OPTIONS requests (CORS preflight)
           return req.method === 'OPTIONS';
         },
       },
@@ -77,9 +60,6 @@ const sdk = new NodeSDK({
       '@opentelemetry/instrumentation-pg': {
         enabled: true,
         enhancedDatabaseReporting: true,
-      },
-      '@opentelemetry/instrumentation-redis-4': {
-        enabled: true,
       },
     }),
   ],

@@ -181,7 +181,7 @@ async function startCollector() {
   const configPath = join(rootDir, 'collector-config.yaml');
 
   if (!existsSync(configPath)) {
-    console.error('❌ Error: collector-config.yaml not found');
+    console.error(`❌ Error: ${configPath} not found`);
     process.exit(1);
   }
 
@@ -201,22 +201,30 @@ async function startCollector() {
     });
   }
 
-  // Ensure required env vars are set
-  if (!envVars.OTEL_EXPORTER_OTLP_ENDPOINT) {
-    console.error('❌ Error: OTEL_EXPORTER_OTLP_ENDPOINT not set in .env');
-    console.error('   Add: OTEL_EXPORTER_OTLP_ENDPOINT=https://YOUR-ORG.ingest.us.sentry.io');
+  // Ensure required env vars are set for multi-project routing
+  const requiredVars = [
+    'SENTRY_PRODUCTS_OTLP_ENDPOINT',
+    'SENTRY_PRODUCTS_AUTH',
+    'SENTRY_ORDERS_OTLP_ENDPOINT',
+    'SENTRY_ORDERS_AUTH',
+    'SENTRY_DEFAULT_OTLP_ENDPOINT',
+    'SENTRY_DEFAULT_AUTH',
+  ];
+
+  const missingVars = requiredVars.filter(v => !envVars[v]);
+  if (missingVars.length > 0) {
+    console.error('❌ Error: Missing required environment variables for collector mode:');
+    missingVars.forEach(v => console.error(`   - ${v}`));
+    console.error('\n   See .env.example for configuration details');
     process.exit(1);
   }
 
-  if (!envVars.SENTRY_AUTH_HEADER) {
-    console.error('❌ Error: SENTRY_AUTH_HEADER not set in .env');
-    console.error('   Add: SENTRY_AUTH_HEADER=sentry_key=YOUR_PUBLIC_KEY,sentry_version=7');
-    process.exit(1);
-  }
-
-  console.log('🚀 Starting OpenTelemetry Collector...');
+  console.log('🚀 Starting OpenTelemetry Collector (Multi-Project Routing)...');
   console.log(`   Config: ${configPath}`);
-  console.log(`   Endpoint: ${envVars.OTEL_EXPORTER_OTLP_ENDPOINT}`);
+  console.log('   Routes: service.name → Sentry Project');
+  console.log('     - products-service → Products Project');
+  console.log('     - orders-service → Orders Project');
+  console.log('     - (other) → Default Project');
 
   const logStream = createWriteStream(LOG_FILE, { flags: 'a' });
 
@@ -246,6 +254,10 @@ async function startCollector() {
     console.log('   HTTP: http://localhost:4318');
     console.log('   gRPC: http://localhost:4317');
     console.log('   Health: http://localhost:13133');
+    console.log('');
+    console.log('📋 Next steps:');
+    console.log('   1. Start products service: npm run collector:products');
+    console.log('   2. Start orders service: npm run collector:orders');
     console.log('');
     console.log(`📋 View logs: npm run collector:logs`);
   } else {

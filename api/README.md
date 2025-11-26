@@ -1,35 +1,56 @@
 # OpenTelemetry E-commerce API
 
-Express API demonstrating OpenTelemetry instrumentation sending traces to Sentry.
+Express API demonstrating two OpenTelemetry integration patterns with Sentry.
 
 **See [QUICKSTART.md](QUICKSTART.md) for setup instructions.**
 
-## Architecture
+## Two Modes
 
+### Mode 1: Direct (OTEL SDK → Sentry)
+Standard single-service integration:
 ```
 ┌─────────────────┐
 │   Express API   │
+│  (Port 3000)    │
 └────────┬────────┘
-         │
-    ┌────┴────┐
-    │  OTEL   │ (Auto + Manual Instrumentation)
-    │   SDK   │
-    └────┬────┘
-         │
-    ┌────┴────┐
-    │  OTLP   │ (HTTP Exporter)
-    │ Exporter│
-    └────┬────┘
-         │
-    ┌────┴────┐
-    │ Sentry  │
-    │ Platform│
-    └─────────┘
+         │ OTLP/HTTP
+         ▼
+┌─────────────────┐
+│ Sentry Project  │
+└─────────────────┘
 ```
 
-Two export modes:
-- **Direct**: App → Sentry (default)
-- **Collector**: App → Collector → Sentry
+**Run:** `npm start`
+
+### Mode 2: Collector (Multi-Project Routing)
+Multiple services routed to separate Sentry projects:
+```
+┌──────────────────┐  ┌──────────────────┐
+│ Products Service │  │  Orders Service  │
+│   (port 3001)    │  │   (port 3002)    │
+└────────┬─────────┘  └─────────┬────────┘
+         │ OTLP                 │ OTLP
+         ▼                      ▼
+    ┌────────────────────────────────┐
+    │   OTEL Collector               │
+    │   (Routing Connector)          │
+    └────┬──────────────────┬────────┘
+         │                  │
+         ▼                  ▼
+┌─────────────────┐  ┌─────────────────┐
+│  Sentry Project │  │  Sentry Project │
+│   (Products)    │  │    (Orders)     │
+└─────────────────┘  └─────────────────┘
+```
+
+**Setup:** Requires creating 3 Sentry projects and configuring OTLP endpoints. See [COLLECTOR_SETUP.md](COLLECTOR_SETUP.md) for detailed instructions.
+
+**Run:**
+```bash
+npm run collector:start      # Terminal 1
+npm run collector:products   # Terminal 2
+npm run collector:orders     # Terminal 3
+```
 
 ## API Endpoints
 
@@ -101,21 +122,23 @@ POST /api/orders
 
 ## Configuration
 
-Key environment variables:
+**Direct Mode requires:**
+- `DATABASE_URL` - Neon PostgreSQL connection
+- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` - Sentry OTLP endpoint
+- `OTEL_EXPORTER_OTLP_TRACES_HEADERS` - Sentry auth header
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | Neon PostgreSQL connection | (required) |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Sentry OTLP endpoint | (required) |
-| `OTEL_EXPORTER_OTLP_TRACES_HEADERS` | Sentry auth header | (required) |
-| `OTEL_MODE` | `direct` or `collector` | `direct` |
-| `PORT` | Server port | `3000` |
-| `NODE_ENV` | Environment | `development` |
+**Collector Mode requires:**
+- `DATABASE_URL` - Neon PostgreSQL connection
+- `SENTRY_PRODUCTS_OTLP_ENDPOINT` & `SENTRY_PRODUCTS_AUTH`
+- `SENTRY_ORDERS_OTLP_ENDPOINT` & `SENTRY_ORDERS_AUTH`
+- `SENTRY_DEFAULT_OTLP_ENDPOINT` & `SENTRY_DEFAULT_AUTH`
+
+See `.env.example` for detailed configuration.
 
 ## Development
 
 **Enable debug logging:**
-Uncomment in `instrument-otel.js`:
+Uncomment in the instrumentation files:
 ```javascript
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 ```
@@ -131,30 +154,28 @@ curl -X POST http://localhost:3000/api/orders \
   -d '{"userId": 1, "items": [{"productId": 1, "quantity": 99999}], "paymentMethod": "credit_card"}'
 ```
 
-**Code locations:**
-- Auto-instrumentation: `instrument-otel.js`
-- Manual instrumentation: `src/services/`
-- Cache: `src/utils/cache.js`
+**Key Files:**
+- `instrument-otel.js` - Direct mode instrumentation
+- `instrument-otel-products.js` - Products service (collector mode)
+- `instrument-otel-orders.js` - Orders service (collector mode)
+- `collector-config.yaml` - Routing connector configuration
+- `src/services/` - Manual instrumentation examples
 
-## Switching Modes
+## Collector Commands
 
 ```bash
-# Check current mode
-npm run mode:status
-
-# Direct Mode (App → Sentry)
-npm run mode:direct && npm start
-
-# Collector Mode (App → Collector → Sentry)
-npm run mode:collector && npm run collector:start && npm start
-
-# Collector commands
+npm run collector:start    # Start collector
 npm run collector:stop     # Stop collector
 npm run collector:health   # Health check
 npm run collector:logs     # View logs
+npm run collector:help     # Show usage instructions
 ```
 
-See [QUICKSTART.md](QUICKSTART.md) for setup details.
+## Documentation
+
+- **[COLLECTOR_SETUP.md](COLLECTOR_SETUP.md)** - Complete setup guide for collector mode (creating Sentry projects, getting OTLP endpoints)
+- **[../docs/MULTI_PROJECT_ROUTING.md](../docs/MULTI_PROJECT_ROUTING.md)** - Detailed explanation of the multi-project routing pattern and Sentry's project constraint
+- **[QUICKSTART.md](QUICKSTART.md)** - Quick setup for direct mode
 
 ## License
 

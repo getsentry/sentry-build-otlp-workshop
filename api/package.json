@@ -11,15 +11,14 @@
     "test:api": "curl -s http://localhost:3000/api/products | json_pp || curl http://localhost:3000/api/products",
     "db:setup": "node src/utils/setupDatabase.js",
     "cache:clear": "node src/utils/clearCache.js",
-    "mode:direct": "node scripts/set-mode.js direct",
-    "mode:collector": "node scripts/set-mode.js collector",
-    "mode:status": "node scripts/set-mode.js status",
+    "direct": "node --import ./instrument-otel.js src/server.js",
     "collector:start": "node scripts/run-collector.js start",
     "collector:stop": "node scripts/run-collector.js stop",
     "collector:logs": "tail -f .otel-collector/collector.log",
     "collector:health": "curl -s http://localhost:13133 && echo ''",
-    "demo:direct": "npm run mode:direct && npm start",
-    "demo:collector": "npm run mode:collector && npm run collector:start && sleep 2 && npm start"
+    "collector:products": "node --import ./instrument-otel-products.js src/server-products.js",
+    "collector:orders": "node --import ./instrument-otel-orders.js src/server-orders.js",
+    "collector:help": "echo '\n🚀 Collector Mode (Multi-Project Routing)\n' && echo 'Step 1: Start the collector (this terminal):' && echo '  npm run collector:start\n' && echo 'Step 2: Start products service (new terminal):' && echo '  cd api && npm run collector:products\n' && echo 'Step 3: Start orders service (new terminal):' && echo '  cd api && npm run collector:orders\n' && echo 'Then test:' && echo '  curl http://localhost:3001/api/products' && echo '  curl http://localhost:3002/api/orders\n'"
   },
   "keywords": [
     "opentelemetry",
