@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as Sentry from '@sentry/react';
 import Cart from '../components/Cart';
 import { createOrder } from '../api/client';
 
@@ -23,6 +24,11 @@ export default function Checkout({ cartItems, onUpdateQuantity, onRemove, onClea
     try {
       setLoading(true);
       setError(null);
+
+      // Intentional error for demo: PayPal integration "fails"
+      if (paymentMethod === 'paypal') {
+        throw new Error('PayPal Integration Error: Unable to connect to PayPal payment gateway. Please try another payment method.');
+      }
 
       const orderData = {
         userId: 1, // Demo user
@@ -59,7 +65,27 @@ export default function Checkout({ cartItems, onUpdateQuantity, onRemove, onClea
         error: err.message,
         itemsCount: cartItems.length,
         totalAmount: total,
+        paymentMethod,
       });
+
+      // Explicitly report caught errors to Sentry
+      Sentry.captureException(err, {
+        tags: {
+          component: 'Checkout',
+          action: 'place_order',
+          payment_method: paymentMethod,
+        },
+        extra: {
+          itemsCount: cartItems.length,
+          totalAmount: total,
+          cartItems: cartItems.map(item => ({
+            productId: item.id,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+        },
+      });
+
       setError(err.message);
     } finally {
       setLoading(false);

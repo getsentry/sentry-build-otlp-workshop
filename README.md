@@ -16,10 +16,11 @@ Full-stack e-commerce app demonstrating OpenTelemetry backend integration with S
    - Demonstrates routing by `service.name` attribute
    - Solves Sentry's project-based architecture constraint
 
-**Frontend (Optional)**: Sentry SDK for distributed tracing
+**Frontend (Optional)**: Sentry SDK for distributed tracing & error tracking
 - React Router tracing
 - `traceparent` header propagation connects frontend → backend traces
 - Creates unified trace view across Browser → API → Database
+- Intentional PayPal error demonstrating caught error reporting with `Sentry.captureException()`
 
 ## Architecture
 
@@ -135,7 +136,11 @@ cp .env.example .env
 npm run dev
 ```
 
-Open http://localhost:5173 and view traces in Sentry → Explore → Traces
+Open http://localhost:5173 and view:
+- **Traces:** Sentry → Explore → Traces
+- **Errors:** Sentry → Issues (trigger by selecting PayPal payment in checkout)
+
+See [frontend/ERROR_TESTING.md](frontend/ERROR_TESTING.md) for error testing guide.
 
 ## Documentation
 
