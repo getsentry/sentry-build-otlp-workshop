@@ -51,49 +51,90 @@ router.post(
         });
 
         // Step 1: Validate user exists
-        const userResult = await query('SELECT id, email, name FROM users WHERE id = $1', [
-          userId,
-        ]);
+        const user = await withSpan('order.validate_user', async (validateSpan) => {
+          validateSpan.setAttributes({
+            'order.user_id': userId,
+            'db.operation': 'SELECT',
+          });
 
-        if (userResult.rows.length === 0) {
-          const error = new Error('User not found');
-          error.code = 'NOT_FOUND';
-          error.statusCode = 404;
-          throw error;
-        }
+          const userResult = await query('SELECT id, email, name FROM users WHERE id = $1', [
+            userId,
+          ]);
 
-        const user = userResult.rows[0];
-        span.setAttribute('order.user_email', user.email);
-
-        // Step 2: Calculate total and validate products
-        let totalAmount = 0;
-        const productDetails = [];
-
-        for (const item of items) {
-          const productResult = await query(
-            'SELECT id, sku, name, price FROM products WHERE id = $1',
-            [item.productId]
-          );
-
-          if (productResult.rows.length === 0) {
-            const error = new Error(`Product ${item.productId} not found`);
+          if (userResult.rows.length === 0) {
+            validateSpan.setAttribute('order.user_found', false);
+            const error = new Error('User not found');
             error.code = 'NOT_FOUND';
             error.statusCode = 404;
             throw error;
           }
 
-          const product = productResult.rows[0];
-          const itemTotal = parseFloat(product.price) * item.quantity;
-          totalAmount += itemTotal;
-
-          productDetails.push({
-            ...item,
-            price: product.price,
-            name: product.name,
-            sku: product.sku,
-            itemTotal,
+          const userData = userResult.rows[0];
+          validateSpan.setAttributes({
+            'order.user_found': true,
+            'order.user_email': userData.email,
           });
-        }
+
+          addEvent('order.user_validated', { user_id: userId, email: userData.email });
+          return userData;
+        });
+
+        span.setAttribute('order.user_email', user.email);
+
+        // Step 2: Calculate total and validate products
+        const { totalAmount, productDetails } = await withSpan(
+          'order.validate_products',
+          async (validateProductsSpan) => {
+            validateProductsSpan.setAttributes({
+              'order.items_count': items.length,
+              'db.operation': 'SELECT',
+            });
+
+            let total = 0;
+            const details = [];
+
+            for (const item of items) {
+              const productResult = await query(
+                'SELECT id, sku, name, price FROM products WHERE id = $1',
+                [item.productId]
+              );
+
+              if (productResult.rows.length === 0) {
+                validateProductsSpan.setAttribute('order.products_valid', false);
+                const error = new Error(`Product ${item.productId} not found`);
+                error.code = 'NOT_FOUND';
+                error.statusCode = 404;
+                throw error;
+              }
+
+              const product = productResult.rows[0];
+              const itemTotal = parseFloat(product.price) * item.quantity;
+              total += itemTotal;
+
+              details.push({
+                ...item,
+                price: product.price,
+                name: product.name,
+                sku: product.sku,
+                itemTotal,
+              });
+
+              addEvent('order.product_validated', {
+                product_id: product.id,
+                sku: product.sku,
+                quantity: item.quantity,
+                item_total: itemTotal,
+              });
+            }
+
+            validateProductsSpan.setAttributes({
+              'order.products_valid': true,
+              'order.total_amount': total,
+            });
+
+            return { totalAmount: total, productDetails: details };
+          }
+        );
 
         span.setAttribute('order.total_amount', totalAmount);
         addEvent('order.total_calculated', { total: totalAmount });
@@ -116,47 +157,66 @@ router.post(
         }
 
         // Step 4: Create order record
-        const client = await getClient();
         let orderId;
         let paymentResult;
 
-        try {
-          await client.query('BEGIN');
-
-          // Insert order
-          const orderResult = await client.query(
-            `INSERT INTO orders (user_id, status, total_amount, payment_method, payment_status)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id`,
-            [userId, 'pending', totalAmount, paymentMethod, 'pending']
-          );
-
-          orderId = orderResult.rows[0].id;
-          span.setAttribute('order.id', orderId);
-
-          addEvent('order.record_created', { order_id: orderId });
-
-          // Insert order items
-          for (const item of productDetails) {
-            await client.query(
-              `INSERT INTO order_items (order_id, product_id, quantity, price)
-               VALUES ($1, $2, $3, $4)`,
-              [orderId, item.productId, item.quantity, item.price]
-            );
-          }
-
-          await client.query('COMMIT');
-
-          addEvent('order.items_saved', {
-            order_id: orderId,
-            items_count: items.length,
+        orderId = await withSpan('order.create_record', async (createSpan) => {
+          createSpan.setAttributes({
+            'order.user_id': userId,
+            'order.total_amount': totalAmount,
+            'order.items_count': items.length,
+            'db.operation': 'INSERT',
+            'db.transaction': true,
           });
-        } catch (error) {
-          await client.query('ROLLBACK');
-          throw error;
-        } finally {
-          client.release();
-        }
+
+          const client = await getClient();
+
+          try {
+            await client.query('BEGIN');
+            addEvent('order.transaction_started', { user_id: userId });
+
+            // Insert order
+            const orderResult = await client.query(
+              `INSERT INTO orders (user_id, status, total_amount, payment_method, payment_status)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING id`,
+              [userId, 'pending', totalAmount, paymentMethod, 'pending']
+            );
+
+            const newOrderId = orderResult.rows[0].id;
+            createSpan.setAttribute('order.id', newOrderId);
+
+            addEvent('order.record_created', { order_id: newOrderId });
+
+            // Insert order items
+            for (const item of productDetails) {
+              await client.query(
+                `INSERT INTO order_items (order_id, product_id, quantity, price)
+                 VALUES ($1, $2, $3, $4)`,
+                [newOrderId, item.productId, item.quantity, item.price]
+              );
+            }
+
+            await client.query('COMMIT');
+
+            createSpan.setAttribute('order.transaction_status', 'committed');
+            addEvent('order.items_saved', {
+              order_id: newOrderId,
+              items_count: items.length,
+            });
+
+            return newOrderId;
+          } catch (error) {
+            await client.query('ROLLBACK');
+            createSpan.setAttribute('order.transaction_status', 'rolled_back');
+            addEvent('order.transaction_failed', { error: error.message });
+            throw error;
+          } finally {
+            client.release();
+          }
+        });
+
+        span.setAttribute('order.id', orderId);
 
         // Step 5: Reserve inventory
         try {
@@ -164,10 +224,23 @@ router.post(
           addEvent('order.inventory_reserved', { order_id: orderId });
         } catch (error) {
           // If inventory reservation fails, mark order as failed
-          await query(
-            `UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-            ['failed', orderId]
-          );
+          await withSpan('order.mark_failed', async (failSpan) => {
+            failSpan.setAttributes({
+              'order.id': orderId,
+              'order.status': 'failed',
+              'order.failure_reason': 'inventory_reservation_failed',
+            });
+
+            await query(
+              `UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+              ['failed', orderId]
+            );
+
+            addEvent('order.status_updated', {
+              order_id: orderId,
+              status: 'failed',
+            });
+          });
 
           addEvent('order.inventory_reservation_failed', {
             order_id: orderId,
@@ -182,12 +255,25 @@ router.post(
           paymentResult = await payment.processPayment(orderId, totalAmount, paymentMethod);
 
           // Update order with payment info
-          await query(
-            `UPDATE orders
-             SET payment_status = $1, status = $2, updated_at = CURRENT_TIMESTAMP
-             WHERE id = $3`,
-            ['completed', 'confirmed', orderId]
-          );
+          await withSpan('order.confirm', async (confirmSpan) => {
+            confirmSpan.setAttributes({
+              'order.id': orderId,
+              'order.status': 'confirmed',
+              'order.payment_status': 'completed',
+            });
+
+            await query(
+              `UPDATE orders
+               SET payment_status = $1, status = $2, updated_at = CURRENT_TIMESTAMP
+               WHERE id = $3`,
+              ['completed', 'confirmed', orderId]
+            );
+
+            addEvent('order.status_updated', {
+              order_id: orderId,
+              status: 'confirmed',
+            });
+          });
 
           span.setAttribute('order.payment_transaction_id', paymentResult.transactionId);
           span.setAttribute('order.status', 'confirmed');
@@ -209,12 +295,26 @@ router.post(
           // Payment failed - release inventory and mark order as failed
           await inventory.releaseInventory(orderId, items);
 
-          await query(
-            `UPDATE orders
-             SET payment_status = $1, status = $2, updated_at = CURRENT_TIMESTAMP
-             WHERE id = $3`,
-            ['failed', 'cancelled', orderId]
-          );
+          await withSpan('order.cancel', async (cancelSpan) => {
+            cancelSpan.setAttributes({
+              'order.id': orderId,
+              'order.status': 'cancelled',
+              'order.payment_status': 'failed',
+              'order.cancellation_reason': 'payment_failed',
+            });
+
+            await query(
+              `UPDATE orders
+               SET payment_status = $1, status = $2, updated_at = CURRENT_TIMESTAMP
+               WHERE id = $3`,
+              ['failed', 'cancelled', orderId]
+            );
+
+            addEvent('order.status_updated', {
+              order_id: orderId,
+              status: 'cancelled',
+            });
+          });
 
           addEvent('order.payment_failed', {
             order_id: orderId,
@@ -235,13 +335,24 @@ router.post(
         }
 
         // Step 7: Return success response
-        const finalOrder = await query(
-          `SELECT o.*, u.email, u.name as user_name
-           FROM orders o
-           JOIN users u ON o.user_id = u.id
-           WHERE o.id = $1`,
-          [orderId]
-        );
+        const finalOrder = await withSpan('order.fetch_details', async (fetchSpan) => {
+          fetchSpan.setAttributes({
+            'order.id': orderId,
+            'db.operation': 'SELECT',
+            'db.purpose': 'fetch_order_for_response',
+          });
+
+          const result = await query(
+            `SELECT o.*, u.email, u.name as user_name
+             FROM orders o
+             JOIN users u ON o.user_id = u.id
+             WHERE o.id = $1`,
+            [orderId]
+          );
+
+          fetchSpan.setAttribute('order.fetched', true);
+          return result;
+        });
 
         addEvent('order.creation_completed', {
           order_id: orderId,

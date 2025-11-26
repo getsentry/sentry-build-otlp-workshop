@@ -15,18 +15,19 @@ Sentry.init({
     Sentry.consoleLoggingIntegration({ levels: ["log", "warn", "error"] }),
   ],
   enableLogs: true,
-  // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
+  // Capture Replay for 10% of all sessions, plus for 100% of sessions with an error
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1.0,
+  
+  // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing
   tracesSampleRate: 1.0,
+  
   // Set `tracePropagationTargets` to control for which URLs trace propagation should be enabled
   tracePropagationTargets: [
     /^\//,                          // Keep this for any same-origin requests
     /^http:\/\/localhost:3000/,     // Add this for your local API
     // /^https:\/\/api\.PROD_DOMAIN\.com/, // Add production URL when deploying
   ],
-
-  // Capture Replay for 10% of all sessions, plus for 100% of sessions with an error
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1.0,
-
+  
   propagateTraceparent: true,
 });
