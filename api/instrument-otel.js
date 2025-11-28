@@ -19,20 +19,6 @@ const __dirname = dirname(__filename);
 
 const packageJson = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
-// Parse header string format: "key1=value1,key2=value2"
-function parseHeaders(headerString) {
-  if (!headerString) return {};
-  
-  const headers = {};
-  headerString.split(',').forEach(pair => {
-    const [key, ...valueParts] = pair.trim().split('=');
-    if (key && valueParts.length > 0) {
-      headers[key] = valueParts.join('=').trim();
-    }
-  });
-  return headers;
-}
-
 const resource = new Resource({
   [SEMRESATTRS_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'sentry-build-otlp-workshop-api',
   [SEMRESATTRS_SERVICE_VERSION]: packageJson.version,
@@ -40,14 +26,13 @@ const resource = new Resource({
 });
 
 // Direct mode: App sends directly to Sentry (single project)
+// Headers are automatically parsed from OTEL_EXPORTER_OTLP_TRACES_HEADERS env var
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-  headers: parseHeaders(process.env.OTEL_EXPORTER_OTLP_TRACES_HEADERS),
 });
 
 const logExporter = new OTLPLogExporter({
   url: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
-  headers: parseHeaders(process.env.OTEL_EXPORTER_OTLP_LOGS_HEADERS),
 });
 
 console.log('📡 Mode: DIRECT (SDK → Sentry)');

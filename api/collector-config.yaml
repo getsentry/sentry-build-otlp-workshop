@@ -50,6 +50,8 @@ connectors:
 
 exporters:
   # Exporter for Products Service Sentry Project
+  # Note: ${env:...} references pull plain strings from .env (no quotes needed in .env)
+  # If hardcoding values here instead, use quotes: x-sentry-auth: "sentry sentry_key=..."
   otlphttp/products:
     endpoint: ${env:SENTRY_PRODUCTS_OTLP_ENDPOINT}
     headers:
