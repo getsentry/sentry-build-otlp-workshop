@@ -5,7 +5,7 @@
  * Usage: node scripts/run-collector.js [start|stop]
  */
 
-import { spawn, exec } from 'child_process';
+import { spawn, exec, execSync } from 'child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -145,24 +145,37 @@ function isCollectorRunning() {
   try {
     const pid = parseInt(readFileSync(PID_FILE, 'utf8').trim());
 
+    let isRunning = false;
+
     // Check if process is running
     if (process.platform === 'win32') {
       // Windows
       try {
         execSync(`tasklist /FI "PID eq ${pid}" | find "${pid}"`, { stdio: 'pipe' });
-        return true;
+        isRunning = true;
       } catch {
-        return false;
+        isRunning = false;
       }
     } else {
       // Unix-like
       try {
         process.kill(pid, 0);
-        return true;
+        isRunning = true;
       } catch {
-        return false;
+        isRunning = false;
       }
     }
+
+    // Clean up stale PID file if process is not running
+    if (!isRunning) {
+      try {
+        unlinkSync(PID_FILE);
+      } catch (error) {
+        // Ignore errors removing stale PID file
+      }
+    }
+
+    return isRunning;
   } catch (error) {
     return false;
   }
@@ -172,6 +185,7 @@ async function startCollector() {
   if (isCollectorRunning()) {
     console.log('⚠️  Collector is already running');
     console.log('   Run "npm run collector:stop" to stop it first');
+    console.log('   Or run "npm run collector:cleanup" to kill all services');
     return;
   }
 
@@ -201,30 +215,42 @@ async function startCollector() {
     });
   }
 
-  // Ensure required env vars are set for multi-project routing
+  // Check required environment variables
   const requiredVars = [
-    'SENTRY_PRODUCTS_OTLP_ENDPOINT',
+    'SENTRY_PRODUCTS_TRACES_ENDPOINT',
+    'SENTRY_PRODUCTS_LOGS_ENDPOINT',
     'SENTRY_PRODUCTS_AUTH',
-    'SENTRY_ORDERS_OTLP_ENDPOINT',
-    'SENTRY_ORDERS_AUTH',
-    'SENTRY_DEFAULT_OTLP_ENDPOINT',
-    'SENTRY_DEFAULT_AUTH',
+    'SENTRY_ORDERS_TRACES_ENDPOINT',
+    'SENTRY_ORDERS_LOGS_ENDPOINT',
+    'SENTRY_ORDERS_AUTH'
   ];
 
   const missingVars = requiredVars.filter(v => !envVars[v]);
+
   if (missingVars.length > 0) {
-    console.error('❌ Error: Missing required environment variables for collector mode:');
+    console.error('❌ Error: Missing required environment variables:');
+    console.error('');
     missingVars.forEach(v => console.error(`   - ${v}`));
-    console.error('\n   See .env.example for configuration details');
+    console.error('');
+    console.error('   Please configure your .env file with Sentry OTLP endpoints.');
+    console.error('');
     process.exit(1);
   }
 
-  console.log('🚀 Starting OpenTelemetry Collector (Multi-Project Routing)...');
+  console.log('🚀 Starting OpenTelemetry Collector...');
   console.log(`   Config: ${configPath}`);
+  console.log('   Mode: Multi-Project Routing');
   console.log('   Routes: service.name → Sentry Project');
   console.log('     - products-service → Products Project');
   console.log('     - orders-service → Orders Project');
-  console.log('     - (other) → Default Project');
+  console.log('     - api-gateway → Orders Project (default)');
+
+  // Debug: Show configured endpoints
+  console.log('');
+  console.log('📝 Configured Endpoints:');
+  console.log(`   Products: ${envVars.SENTRY_PRODUCTS_TRACES_ENDPOINT ? '✓' : '✗'}`);
+  console.log(`   Orders:   ${envVars.SENTRY_ORDERS_TRACES_ENDPOINT ? '✓' : '✗'}`);
+  console.log('');
 
   const logStream = createWriteStream(LOG_FILE, { flags: 'a' });
 
@@ -299,9 +325,20 @@ async function stopCollector() {
       }
     }
 
+    // Remove PID file after successful stop
+    if (existsSync(PID_FILE)) {
+      unlinkSync(PID_FILE);
+    }
+
     console.log('✅ Collector stopped');
   } catch (error) {
     console.error('❌ Error stopping collector:', error.message);
+    // Clean up PID file even on error
+    if (existsSync(PID_FILE)) {
+      try {
+        unlinkSync(PID_FILE);
+      } catch {}
+    }
   }
 }
 

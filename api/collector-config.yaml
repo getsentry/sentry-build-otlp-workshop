@@ -1,6 +1,5 @@
 # OpenTelemetry Collector Configuration - Multi-Project Routing
-# This configuration demonstrates routing telemetry from multiple services
-# to separate Sentry projects using the routing connector.
+# Routes telemetry to separate Sentry projects based on service.name
 
 receivers:
   otlp:
@@ -10,152 +9,87 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
-processors:
-  batch:
-    timeout: 10s
-    send_batch_size: 100
-    send_batch_max_size: 1000
-
-  memory_limiter:
-    check_interval: 1s
-    limit_mib: 512
-    spike_limit_mib: 128
-
-  resource:
-    attributes:
-      - key: deployment.environment
-        value: ${env:DEPLOYMENT_ENV:-development}
-        action: upsert
-      - key: collector.version
-        value: "1.0.0"
-        action: insert
-
 connectors:
-  # Routing connector: Routes telemetry based on service.name attribute
-  # to separate pipelines (one per Sentry project)
-  routing:
-    default_pipelines: [traces/default, logs/default]
+  routing/traces:
+    default_pipelines: [traces/orders]
     error_mode: ignore
-
     table:
-      # Route products-service to products pipeline
-      - context: resource
-        statement: route() where attributes["service.name"] == "products-service"
-        pipelines: [traces/products, logs/products]
+      # Products Service
+      - statement: route() where attributes["service.name"] == "products-service"
+        pipelines: [traces/products]
 
-      # Route orders-service to orders pipeline
-      - context: resource
-        statement: route() where attributes["service.name"] == "orders-service"
-        pipelines: [traces/orders, logs/orders]
+      # Orders Service
+      - statement: route() where attributes["service.name"] == "orders-service"
+        pipelines: [traces/orders]
+
+  routing/logs:
+    default_pipelines: [logs/orders]
+    error_mode: ignore
+    table:
+      # Products Service
+      - statement: route() where attributes["service.name"] == "products-service"
+        pipelines: [logs/products]
+
+      # Orders Service
+      - statement: route() where attributes["service.name"] == "orders-service"
+        pipelines: [logs/orders]
 
 exporters:
-  # Exporter for Products Service Sentry Project
-  # Note: ${env:...} references pull plain strings from .env (no quotes needed in .env)
-  # If hardcoding values here instead, use quotes: x-sentry-auth: "sentry sentry_key=..."
-  otlphttp/products:
-    endpoint: ${env:SENTRY_PRODUCTS_OTLP_ENDPOINT}
+  # Products Service
+  otlphttp/products-traces:
+    traces_endpoint: ${env:SENTRY_PRODUCTS_TRACES_ENDPOINT}
     headers:
       x-sentry-auth: ${env:SENTRY_PRODUCTS_AUTH}
     compression: gzip
-    timeout: 30s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
+    encoding: proto
 
-  # Exporter for Orders Service Sentry Project
-  otlphttp/orders:
-    endpoint: ${env:SENTRY_ORDERS_OTLP_ENDPOINT}
+  otlphttp/products-logs:
+    logs_endpoint: ${env:SENTRY_PRODUCTS_LOGS_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_PRODUCTS_AUTH}
+    compression: gzip
+    encoding: proto
+
+  # Orders Service
+  otlphttp/orders-traces:
+    traces_endpoint: ${env:SENTRY_ORDERS_TRACES_ENDPOINT}
     headers:
       x-sentry-auth: ${env:SENTRY_ORDERS_AUTH}
     compression: gzip
-    timeout: 30s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
+    encoding: proto
 
-  # Default/fallback exporter for unmatched services
-  otlphttp/default:
-    endpoint: ${env:SENTRY_DEFAULT_OTLP_ENDPOINT}
+  otlphttp/orders-logs:
+    logs_endpoint: ${env:SENTRY_ORDERS_LOGS_ENDPOINT}
     headers:
-      x-sentry-auth: ${env:SENTRY_DEFAULT_AUTH}
+      x-sentry-auth: ${env:SENTRY_ORDERS_AUTH}
     compression: gzip
-    timeout: 30s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-
-  # Uncomment for debug output:
-  # debug:
-  #   verbosity: detailed
-
-extensions:
-  health_check:
-    endpoint: 0.0.0.0:13133
-  pprof:
-    endpoint: 0.0.0.0:1777
-  zpages:
-    endpoint: 0.0.0.0:55679
+    encoding: proto
 
 service:
-  extensions: [health_check, pprof, zpages]
-
   pipelines:
-    # Primary traces pipeline: Receives OTLP, routes via connector
+    # Primary pipelines - receive and route
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
-      exporters: [routing]
+      exporters: [routing/traces]
 
-    # Products service traces pipeline
-    traces/products:
-      receivers: [routing]
-      exporters: [otlphttp/products]
-
-    # Orders service traces pipeline
-    traces/orders:
-      receivers: [routing]
-      exporters: [otlphttp/orders]
-
-    # Default traces pipeline for unmatched services
-    traces/default:
-      receivers: [routing]
-      exporters: [otlphttp/default]
-
-    # Primary logs pipeline: Receives OTLP, routes via connector
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
-      exporters: [routing]
+      exporters: [routing/logs]
 
-    # Products service logs pipeline
+    # Products service pipelines
+    traces/products:
+      receivers: [routing/traces]
+      exporters: [otlphttp/products-traces]
+
     logs/products:
-      receivers: [routing]
-      exporters: [otlphttp/products]
+      receivers: [routing/logs]
+      exporters: [otlphttp/products-logs]
 
-    # Orders service logs pipeline
+    # Orders service pipelines
+    traces/orders:
+      receivers: [routing/traces]
+      exporters: [otlphttp/orders-traces]
+
     logs/orders:
-      receivers: [routing]
-      exporters: [otlphttp/orders]
-
-    # Default logs pipeline for unmatched services
-    logs/default:
-      receivers: [routing]
-      exporters: [otlphttp/default]
-
-  telemetry:
-    logs:
-      level: info
-    metrics:
-      level: detailed
-      readers:
-        - pull:
-            exporter:
-              prometheus:
-                host: 0.0.0.0
-                port: 8888
+      receivers: [routing/logs]
+      exporters: [otlphttp/orders-logs]
