@@ -36,5 +36,7 @@ coverage/
 tmp/
 temp/
 
-# OpenTelemetry Collector
-.otel-collector/
+# OpenTelemetry Collector (binary and runtime files)
+.otel-collector/otelcol-contrib
+.otel-collector/collector.log
+.otel-collector/collector.pid

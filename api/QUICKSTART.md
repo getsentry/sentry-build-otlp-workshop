@@ -3,8 +3,8 @@
 ## Prerequisites
 
 - Node.js 18+
-- PostgreSQL database (recommend https://neon.tech for free cloud Postgres)
-- Sentry account with OTLP enabled
+- PostgreSQL database (we'll use https://neon.tech for free cloud Postgres)
+- Free Sentry account
 
 ## Setup
 
@@ -84,6 +84,7 @@ npm start
 ```
 
 You should see:
+
 ```
 📡 Mode: DIRECT
 📡 Server listening on port 3000
@@ -98,6 +99,7 @@ npm run collector:all
 ```
 
 This starts 4 processes:
+
 - **OTEL Collector** (ports 4317, 4318)
 - **Gateway** on port 3000
 - **Products Service** on port 3001
@@ -129,21 +131,25 @@ Go to your Sentry project(s) → **Explore** → **Traces**
 **Direct Mode:** All traces in one project
 
 **Collector Mode:**
+
 - Products traces in Products project
 - Orders traces in Orders project
 
 ## Troubleshooting
 
 **No traces in Sentry**
+
 - Verify OTLP endpoint URL is correct
 - Check Sentry public key in headers
 - Look for errors in console output
 
 **Database connection error**
+
 - Check `DATABASE_URL` includes `?sslmode=require`
 - Verify database is accessible
 
 **Port already in use (collector mode)**
+
 ```bash
 npm run collector:cleanup  # Kills processes on ports 3000-3002
 ```
@@ -151,11 +157,13 @@ npm run collector:cleanup  # Kills processes on ports 3000-3002
 ## What's the Difference?
 
 **Direct Mode:**
+
 - ✅ Simple setup (1 Sentry project)
 - ✅ Single monolithic service
 - 📊 All telemetry in one place
 
 **Collector Mode:**
+
 - ⚙️ Requires 2 Sentry projects
 - 🏗️ Microservices architecture (Gateway + Products + Orders)
 - 🎯 Demonstrates multi-project routing workaround
@@ -164,6 +172,7 @@ npm run collector:cleanup  # Kills processes on ports 3000-3002
 ## Next Steps
 
 See [README.md](README.md) for:
+
 - API endpoints
 - Manual instrumentation examples
 - Error scenarios

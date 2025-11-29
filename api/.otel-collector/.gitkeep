@@ -1,0 +1,11 @@
+# This directory stores the OTEL Collector binary and runtime files
+
+The collector binary (otelcol-contrib) is downloaded automatically when you run:
+```
+npm run collector:start
+```
+
+Files in this directory:
+- `otelcol-contrib` - Collector binary (downloaded, ~322MB, not committed)
+- `collector.log` - Runtime logs (not committed)
+- `collector.pid` - Process ID file (not committed)

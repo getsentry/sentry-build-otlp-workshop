@@ -36,5 +36,7 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
-# Documentation
-docs/
+# OTEL Collector (binary downloaded on demand)
+api/.otel-collector/otelcol-contrib
+api/.otel-collector/collector.log
+api/.otel-collector/collector.pid
