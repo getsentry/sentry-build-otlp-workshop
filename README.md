@@ -1,26 +1,25 @@
 # OTEL E-Commerce Demo
 
-Full-stack e-commerce app demonstrating OpenTelemetry backend integration with Sentry, including a multi-project routing workaround for the OTEL Collector.
+Full-stack e-commerce app demonstrating OpenTelemetry backend integration with Sentry.
 
 ## What This Shows
 
 **Two Integration Modes:**
 
-1. **Direct Mode (OTEL SDK → Sentry)**: Standard integration
-   - Single service sending directly to a single Sentry project
+1. **Direct Mode**: Single monolithic service
+   - Express API sending directly to a single Sentry project
    - Auto-instrumentation (HTTP, Express, PostgreSQL)
-   - Manual instrumentation (custom spans, events, cache)
+   - Manual instrumentation (custom spans, events)
 
-2. **Collector Mode (Multi-Project Routing)**: Advanced workaround
-   - Multiple microservices → OTEL Collector → Multiple Sentry projects
-   - Demonstrates routing by `service.name` attribute
-   - Solves Sentry's project-based architecture constraint
+2. **Collector Mode**: Microservices with multi-project routing
+   - API Gateway + Products + Orders microservices
+   - Collector routes each service to separate Sentry projects
+   - Demonstrates workaround for Sentry's project-based architecture
 
-**Frontend (Optional)**: Sentry SDK for distributed tracing & error tracking
-- React Router tracing
-- `traceparent` header propagation connects frontend → backend traces
-- Creates unified trace view across Browser → API → Database
-- Intentional PayPal error demonstrating caught error reporting with `Sentry.captureException()`
+**Frontend**: React app with Sentry SDK
+- Distributed tracing connects frontend → backend traces
+- `traceparent` header propagation
+- Error tracking with `Sentry.captureException()`
 
 ## Architecture
 
@@ -37,117 +36,129 @@ Full-stack e-commerce app demonstrating OpenTelemetry backend integration with S
 └─────────────────┘
 ```
 
-**Collector Mode (Multi-Project):**
+**Collector Mode (Multi-Project Routing):**
 ```
-┌──────────────────┐  ┌──────────────────┐
-│ Products Service │  │  Orders Service  │
-│   (port 3001)    │  │   (port 3002)    │
-│ service.name:    │  │ service.name:    │
-│ products-service │  │ orders-service   │
-└────────┬─────────┘  └─────────┬────────┘
-         │ OTLP                 │ OTLP
-         ▼                      ▼
-    ┌────────────────────────────────┐
-    │   OTEL Collector               │
-    │   (Routing Connector)          │
-    └────┬──────────────────┬────────┘
-         │                  │
-         ▼                  ▼
-┌─────────────────┐  ┌─────────────────┐
-│  Sentry Project │  │  Sentry Project │
-│   (Products)    │  │    (Orders)     │
-└─────────────────┘  └─────────────────┘
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│   API Gateway    │  │ Products Service │  │  Orders Service  │
+│   (port 3000)    │  │   (port 3001)    │  │   (port 3002)    │
+│                  │  │ service.name:    │  │ service.name:    │
+│                  │  │ products-service │  │ orders-service   │
+└────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
+         │                     │                     │
+         │ OTLP                │ OTLP                │ OTLP
+         ▼                     ▼                     ▼
+    ┌──────────────────────────────────────────────────────┐
+    │           OTEL Collector (Routing Connector)         │
+    └────┬──────────────────────────┬──────────────────────┘
+         │                          │
+         ▼                          ▼
+┌─────────────────┐        ┌─────────────────┐
+│ Sentry Project  │        │ Sentry Project  │
+│   (Products)    │        │    (Orders)     │
+└─────────────────┘        └─────────────────┘
 ```
 
 ## Prerequisites
 
 - Node.js 18+
-- Free Neon account (https://neon.tech)
-- Sentry project with OTLP enabled
+- PostgreSQL database (recommend https://neon.tech)
+- Sentry account with OTLP enabled
 
 ## Quick Start
 
-### Setup
-
-```bash
-# Install dependencies
-cd api && npm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env and add your Sentry OTLP configuration
-
-# Setup database (Neon.tech account required)
-npx neondb -y  # Auto-creates database and adds URL to .env
-npm run db:setup
-```
-
-### Mode 1: Direct (OTEL SDK → Sentry)
-
-Standard single-service integration:
+### 1. Install & Configure
 
 ```bash
 cd api
-npm start  # or: npm run direct
+npm install
+cp .env.example .env
 ```
 
-Test:
+### 2. Setup Database
+
+```bash
+npx neondb -y  # Auto-creates Neon database
+npm run db:setup
+```
+
+### 3. Configure Sentry
+
+Add your Sentry OTLP endpoint to `.env` (see [api/QUICKSTART.md](api/QUICKSTART.md) for details)
+
+### Mode 1: Direct
+
+Single monolithic Express API → Sentry
+
+**Run:**
+```bash
+cd api
+npm start
+```
+
+**Test:**
 ```bash
 curl http://localhost:3000/api/products
 ```
 
+Traces appear in your Sentry project.
+
 ### Mode 2: Collector (Multi-Project Routing)
 
-Advanced multi-service with routing. **Requires 3 Sentry projects.**
+Microservices with OTEL Collector routing to separate Sentry projects.
 
-**Setup:** See [api/COLLECTOR_SETUP.md](api/COLLECTOR_SETUP.md) for detailed instructions on creating Sentry projects and getting OTLP endpoints.
+**Requirements:**
+- Create **2 Sentry projects** (Products, Orders)
+- Get OTLP endpoints for both projects
+- Configure `.env` with credentials for both (see [api/QUICKSTART.md](api/QUICKSTART.md))
 
-Quick start (after setup):
-
+**Run:**
 ```bash
-# Terminal 1: Start collector
 cd api
-npm run collector:start
-
-# Terminal 2: Start products service
-cd api
-npm run collector:products
-
-# Terminal 3: Start orders service
-cd api
-npm run collector:orders
+npm run collector:all
 ```
 
-Test:
+This starts 4 services:
+- **OTEL Collector** (ports 4317, 4318) - routes by `service.name`
+- **Gateway** (port 3000) - API entry point
+- **Products Service** (port 3001) - routes to Products Sentry project
+- **Orders Service** (port 3002) - routes to Orders Sentry project
+
+**Test:**
 ```bash
-curl http://localhost:3001/api/products
-curl -X POST http://localhost:3002/api/orders \
+# Products endpoint → Products Sentry Project
+curl http://localhost:3000/api/products
+
+# Orders endpoint → Orders Sentry Project
+curl -X POST http://localhost:3000/api/orders \
   -H "Content-Type: application/json" \
   -d '{"userId": 1, "items": [{"productId": 1, "quantity": 2}], "paymentMethod": "credit_card"}'
 ```
 
+**See:** [docs/MULTI_PROJECT_ROUTING.md](docs/MULTI_PROJECT_ROUTING.md) for detailed explanation of the routing workaround
+
 ### Frontend (Optional)
+
+React app with Sentry SDK for distributed tracing.
 
 ```bash
 cd frontend
 npm install
 cp .env.example .env
-# Add Sentry DSN
+# Add VITE_SENTRY_DSN and VITE_API_URL
 npm run dev
 ```
 
-Open http://localhost:5173 and view:
-- **Traces:** Sentry → Explore → Traces
-- **Errors:** Sentry → Issues (trigger by selecting PayPal payment in checkout)
+Open http://localhost:5173
 
-See [frontend/ERROR_TESTING.md](frontend/ERROR_TESTING.md) for error testing guide.
+Frontend traces connect to backend traces via `traceparent` header, creating unified traces across Browser → Gateway → Microservices → Database.
 
 ## Documentation
 
-- **[api/COLLECTOR_SETUP.md](api/COLLECTOR_SETUP.md)** - Step-by-step guide to set up collector mode with multiple Sentry projects
-- **[docs/MULTI_PROJECT_ROUTING.md](docs/MULTI_PROJECT_ROUTING.md)** - Detailed explanation of the multi-project routing constraint and solution
-- **[api/collector-config.yaml](api/collector-config.yaml)** - Collector configuration with routing connector
-- **[api/QUICKSTART.md](api/QUICKSTART.md)** - Quick setup instructions for direct mode
+- **[api/QUICKSTART.md](api/QUICKSTART.md)** - Quick setup instructions
+- **[api/README.md](api/README.md)** - API documentation and configuration
+- **[docs/MULTI_PROJECT_ROUTING.md](docs/MULTI_PROJECT_ROUTING.md)** - Multi-project routing explained
+- **[api/collector-config.yaml](api/collector-config.yaml)** - Collector configuration
+- **[frontend/README.md](frontend/README.md)** - Frontend setup instructions
 
 ## Key Files
 
@@ -156,9 +167,11 @@ See [frontend/ERROR_TESTING.md](frontend/ERROR_TESTING.md) for error testing gui
 - `api/src/server.js` - Main application server
 
 **Collector Mode:**
-- `api/collector-config.yaml` - Routing connector configuration
+- `api/collector-config.yaml` - Collector configuration
+- `api/instrument-otel-gateway.js` - Gateway instrumentation
 - `api/instrument-otel-products.js` - Products service instrumentation
 - `api/instrument-otel-orders.js` - Orders service instrumentation
+- `api/src/server-gateway.js` - Gateway server
 - `api/src/server-products.js` - Products service server
 - `api/src/server-orders.js` - Orders service server
 

@@ -1,13 +1,13 @@
 # OpenTelemetry E-commerce API
 
-Express API demonstrating two OpenTelemetry integration patterns with Sentry.
+Express API demonstrating OpenTelemetry integration with Sentry.
 
 **See [QUICKSTART.md](QUICKSTART.md) for setup instructions.**
 
 ## Two Modes
 
-### Mode 1: Direct (OTEL SDK → Sentry)
-Standard single-service integration:
+### Mode 1: Direct
+Single monolithic service:
 ```
 ┌─────────────────┐
 │   Express API   │
@@ -23,36 +23,39 @@ Standard single-service integration:
 **Run:** `npm start`
 
 ### Mode 2: Collector (Multi-Project Routing)
-Multiple services routed to separate Sentry projects:
+Microservices routing to separate Sentry projects:
 ```
-┌──────────────────┐  ┌──────────────────┐
-│ Products Service │  │  Orders Service  │
-│   (port 3001)    │  │   (port 3002)    │
-└────────┬─────────┘  └─────────┬────────┘
-         │ OTLP                 │ OTLP
-         ▼                      ▼
-    ┌────────────────────────────────┐
-    │   OTEL Collector               │
-    │   (Routing Connector)          │
-    └────┬──────────────────┬────────┘
-         │                  │
-         ▼                  ▼
-┌─────────────────┐  ┌─────────────────┐
-│  Sentry Project │  │  Sentry Project │
-│   (Products)    │  │    (Orders)     │
-└─────────────────┘  └─────────────────┘
+┌──────────────────┐
+│   API Gateway    │
+│   (port 3000)    │────┐
+└──────────────────┘    │
+                        │
+┌──────────────────┐    │
+│ Products Service │    │
+│   (port 3001)    │────┤ OTLP
+└──────────────────┘    │
+                        │
+┌──────────────────┐    │
+│  Orders Service  │    │
+│   (port 3002)    │────┘
+└──────────────────┘
+         │
+         ▼
+┌────────────────────┐
+│  OTEL Collector    │
+└────────┬───────────┘
+         │ OTLP/HTTP
+         ▼
+┌─────────────────┐
+│ Sentry Project  │
+└─────────────────┘
 ```
 
-**Setup:** Requires creating 3 Sentry projects and configuring OTLP endpoints. See [COLLECTOR_SETUP.md](COLLECTOR_SETUP.md) for detailed instructions.
-
-**Run:**
-```bash
-npm run collector:start      # Terminal 1
-npm run collector:products   # Terminal 2
-npm run collector:orders     # Terminal 3
-```
+**Run:** `npm run collector:all`
 
 ## API Endpoints
+
+All requests go through port 3000 in both modes.
 
 **Products**
 ```bash
@@ -75,8 +78,10 @@ GET  /health                 # Health check
 
 ## Testing
 
+Both modes use port 3000:
+
 ```bash
-# Quick test
+# Products endpoint
 curl http://localhost:3000/api/products
 
 # Create order
@@ -84,9 +89,11 @@ curl -X POST http://localhost:3000/api/orders \
   -H "Content-Type: application/json" \
   -d '{"userId": 1, "items": [{"productId": 1, "quantity": 1}], "paymentMethod": "credit_card"}'
 
-# Load test (generates ~40 traces)
+# Load test (generates multiple traces)
 npm test
 ```
+
+**Collector Mode:** Check traces in separate Products and Orders Sentry projects.
 
 ## Instrumentation
 
@@ -101,17 +108,19 @@ npm test
 - Events (cache hits, payment failures)
 - Errors with full context
 
-**Example trace in Sentry:**
+**Example trace structure:**
 ```
 POST /api/orders
-  ├─ order.create
-  │   ├─ SELECT users (Postgres)
-  │   ├─ SELECT products (Postgres)
-  │   ├─ inventory.check
-  │   ├─ BEGIN/INSERT/COMMIT (Transaction)
-  │   ├─ inventory.reserve
-  │   └─ payment.process
+  ├─ order.create (custom span)
+  │   ├─ SELECT users (auto-instrumented)
+  │   ├─ SELECT products (auto-instrumented)
+  │   ├─ inventory.check (custom span)
+  │   ├─ BEGIN/INSERT/COMMIT (auto-instrumented)
+  │   ├─ inventory.reserve (custom span)
+  │   └─ payment.process (custom span)
 ```
+
+**Collector Mode:** In the Orders Sentry project, you'll also see the gateway span as the parent.
 
 **Built-in error scenarios:**
 - 404 (invalid IDs)
@@ -122,18 +131,25 @@ POST /api/orders
 
 ## Configuration
 
-**Direct Mode requires:**
-- `DATABASE_URL` - Neon PostgreSQL connection
+### Direct Mode
+Requires in `.env`:
+- `DATABASE_URL` - PostgreSQL connection
 - `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` - Sentry OTLP endpoint
 - `OTEL_EXPORTER_OTLP_TRACES_HEADERS` - Sentry auth header
 
-**Collector Mode requires:**
-- `DATABASE_URL` - Neon PostgreSQL connection
-- `SENTRY_PRODUCTS_OTLP_ENDPOINT` & `SENTRY_PRODUCTS_AUTH`
-- `SENTRY_ORDERS_OTLP_ENDPOINT` & `SENTRY_ORDERS_AUTH`
-- `SENTRY_DEFAULT_OTLP_ENDPOINT` & `SENTRY_DEFAULT_AUTH`
+### Collector Mode
+Requires in `.env`:
+- `DATABASE_URL` - PostgreSQL connection
+- `SENTRY_PRODUCTS_TRACES_ENDPOINT` - Products project endpoint
+- `SENTRY_PRODUCTS_LOGS_ENDPOINT` - Products project logs endpoint
+- `SENTRY_PRODUCTS_AUTH` - Products project auth
+- `SENTRY_ORDERS_TRACES_ENDPOINT` - Orders project endpoint
+- `SENTRY_ORDERS_LOGS_ENDPOINT` - Orders project logs endpoint
+- `SENTRY_ORDERS_AUTH` - Orders project auth
 
-See `.env.example` for detailed configuration.
+Routing configured in `collector-config.yaml`.
+
+See `.env.example` for full configuration examples.
 
 ## Development
 
@@ -156,26 +172,27 @@ curl -X POST http://localhost:3000/api/orders \
 
 **Key Files:**
 - `instrument-otel.js` - Direct mode instrumentation
+- `instrument-otel-gateway.js` - Gateway service (collector mode)
 - `instrument-otel-products.js` - Products service (collector mode)
 - `instrument-otel-orders.js` - Orders service (collector mode)
-- `collector-config.yaml` - Routing connector configuration
+- `collector-config.yaml` - Collector configuration
 - `src/services/` - Manual instrumentation examples
 
 ## Collector Commands
 
 ```bash
-npm run collector:start    # Start collector
+npm run collector:all      # Start all services
+npm run collector:start    # Start collector only
 npm run collector:stop     # Stop collector
 npm run collector:health   # Health check
 npm run collector:logs     # View logs
-npm run collector:help     # Show usage instructions
 ```
 
 ## Documentation
 
-- **[COLLECTOR_SETUP.md](COLLECTOR_SETUP.md)** - Complete setup guide for collector mode (creating Sentry projects, getting OTLP endpoints)
-- **[../docs/MULTI_PROJECT_ROUTING.md](../docs/MULTI_PROJECT_ROUTING.md)** - Detailed explanation of the multi-project routing pattern and Sentry's project constraint
-- **[QUICKSTART.md](QUICKSTART.md)** - Quick setup for direct mode
+- **[QUICKSTART.md](QUICKSTART.md)** - Quick setup guide
+- **[../docs/MULTI_PROJECT_ROUTING.md](../docs/MULTI_PROJECT_ROUTING.md)** - Multi-project routing explained
+- **[../README.md](../README.md)** - Main project documentation
 
 ## License
 
