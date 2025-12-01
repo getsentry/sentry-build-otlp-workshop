@@ -26,7 +26,7 @@ const resource = new Resource({
 });
 
 // Direct mode: App sends directly to Sentry (single project)
-// Headers are automatically parsed from OTEL_EXPORTER_OTLP_TRACES_HEADERS env var
+// Headers are automatically parsed from OTEL_EXPORTER_OTLP_TRACES_HEADERS env var by the exporter
 const traceExporter = new OTLPTraceExporter({
   url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
 });

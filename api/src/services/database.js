@@ -30,10 +30,11 @@ export async function query(text, params) {
   const res = await pool.query(text, params);
   const duration = Date.now() - start;
 
-  // Log slow queries
-  if (duration > 1000) {
-    console.warn('⚠️  Slow query detected:', { text, duration, rows: res.rowCount });
-  }
+  // Slow queries are already tracked by OpenTelemetry spans
+  // Uncomment below to log them to console as well
+  // if (duration > 1000) {
+  //   console.warn('⚠️  Slow query detected:', { text, duration, rows: res.rowCount });
+  // }
 
   return res;
 }
