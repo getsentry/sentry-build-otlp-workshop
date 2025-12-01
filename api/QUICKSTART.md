@@ -4,7 +4,7 @@
 
 - Node.js 18+
 - PostgreSQL database (we'll use https://neon.tech for free cloud Postgres)
-- Free Sentry account
+- [Free or paid Sentry account](https://sentry.io/signup/)
 
 ## Setup
 
@@ -75,105 +75,50 @@ See [../docs/MULTI_PROJECT_ROUTING.md](../docs/MULTI_PROJECT_ROUTING.md) for det
 
 ## Running
 
-### Direct Mode (Single Service)
-
-Single monolithic Express API on port 3000:
+**Direct Mode:**
 
 ```bash
 npm start
+# or from root: npm run demo:direct
 ```
 
-You should see:
-
-```
-📡 Mode: DIRECT
-📡 Server listening on port 3000
-```
-
-### Collector Mode (Microservices)
-
-Gateway + Products + Orders microservices with OTEL Collector routing:
+**Collector Mode:**
 
 ```bash
 npm run collector:all
+# or from root: npm run demo:collector
 ```
-
-This starts 4 processes:
-
-- **OTEL Collector** (ports 4317, 4318)
-- **Gateway** on port 3000
-- **Products Service** on port 3001
-- **Orders Service** on port 3002
-
-You should see output from all services.
 
 ## Testing
 
-Both modes use the same port 3000 for the API:
-
 ```bash
-# Test products endpoint
+# Products
 curl http://localhost:3000/api/products
 
-# Test orders endpoint
+# Orders
 curl -X POST http://localhost:3000/api/orders \
   -H "Content-Type: application/json" \
   -d '{"userId": 1, "items": [{"productId": 1, "quantity": 2}], "paymentMethod": "credit_card"}'
 
-# Load test (generates multiple traces)
+# Load test
 npm test
 ```
 
-## Viewing in Sentry
-
-Go to your Sentry project(s) → **Explore** → **Traces**
-
-**Direct Mode:** All traces in one project
-
-**Collector Mode:**
-
-- Products traces in Products project
-- Orders traces in Orders project
+View traces in Sentry: **Explore** → **Traces**
 
 ## Troubleshooting
 
 **No traces in Sentry**
 
-- Verify OTLP endpoint URL is correct
-- Check Sentry public key in headers
-- Look for errors in console output
+- Verify OTLP endpoint and auth header
+- Check console for errors
 
 **Database connection error**
 
-- Check `DATABASE_URL` includes `?sslmode=require`
-- Verify database is accessible
+- Ensure `DATABASE_URL` includes `?sslmode=require`
 
-**Port already in use (collector mode)**
+**Port conflicts (collector mode)**
 
 ```bash
-npm run collector:cleanup  # Kills processes on ports 3000-3002
+npm run collector:cleanup
 ```
-
-## What's the Difference?
-
-**Direct Mode:**
-
-- ✅ Simple setup (1 Sentry project)
-- ✅ Single monolithic service
-- 📊 All telemetry in one place
-
-**Collector Mode:**
-
-- ⚙️ Requires 2 Sentry projects
-- 🏗️ Microservices architecture (Gateway + Products + Orders)
-- 🎯 Demonstrates multi-project routing workaround
-- 📊 Each service's data isolated in separate Sentry projects
-
-## Next Steps
-
-See [README.md](README.md) for:
-
-- API endpoints
-- Manual instrumentation examples
-- Error scenarios
-- Development tips
