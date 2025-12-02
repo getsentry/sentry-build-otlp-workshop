@@ -5,10 +5,12 @@ Express API demonstrating OpenTelemetry integration with Sentry. See [QUICKSTART
 ## Two Modes
 
 **Direct Mode:** Single monolithic service → Sentry
+
 - From root: `npm run demo:direct`
 - From api: `npm start`
 
 **Collector Mode:** Microservices with OTEL Collector routing to separate Sentry projects
+
 - From root: `npm run demo:collector`
 - From api: `npm run collector:all`
 
@@ -40,11 +42,17 @@ GET  /health                 # Health check
 
 ## Testing
 
+The load test is a plain HTTP client that sends requests to your API. It will generate telemetry in whichever mode you're running.
+
 ```bash
-# Load test (from root - recommended)
+# 1. Start your API in the desired mode first:
+#    Direct mode:    npm run demo:direct
+#    Collector mode: npm run demo:collector
+
+# 2. Then run the load test (from root):
 npm run test:api
 
-# Or from api directory
+# Or from api directory:
 npm test
 
 # Or test manually with curl
@@ -102,6 +110,7 @@ Routing logic is in `collector-config.yaml`.
 ## Key Scripts
 
 **From root:**
+
 ```bash
 npm run demo:direct      # Direct mode
 npm run demo:collector   # Collector mode
@@ -111,6 +120,7 @@ npm run db:setup         # Initialize database
 ```
 
 **From api directory:**
+
 ```bash
 npm start                # Direct mode
 npm run collector:all    # Collector mode (all services)

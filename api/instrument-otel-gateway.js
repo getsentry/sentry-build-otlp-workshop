@@ -6,7 +6,8 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 import { Resource } from '@opentelemetry/resources';
 import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } from '@opentelemetry/semantic-conventions';
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
-import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
+import { logs as logsAPI } from '@opentelemetry/api-logs';
+import { LoggerProvider, BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -33,6 +34,10 @@ const logExporter = new OTLPLogExporter({
   url: 'http://localhost:4318/v1/logs',
 });
 
+// Initialize LoggerProvider
+const loggerProvider = new LoggerProvider({ resource });
+loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(logExporter));
+
 console.log('📡 Mode: MULTI-SERVICE (via COLLECTOR)');
 console.log('📡 Service: api-gateway');
 console.log('📡 Exporting to: http://localhost:4318');
@@ -41,7 +46,6 @@ console.log('📡 Exporting to: http://localhost:4318');
 const sdk = new NodeSDK({
   resource,
   traceExporter,
-  logRecordProcessors: [new BatchLogRecordProcessor(logExporter)],
   instrumentations: [
     getNodeAutoInstrumentations({
       '@opentelemetry/instrumentation-fs': {
@@ -63,6 +67,9 @@ const sdk = new NodeSDK({
 
 sdk.start();
 
+// Register the global LoggerProvider
+logsAPI.setGlobalLoggerProvider(loggerProvider);
+
 // Uncomment for debug logging:
 // diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
@@ -73,8 +80,10 @@ console.log(`🌍 Environment: ${resource.attributes[SEMRESATTRS_DEPLOYMENT_ENVI
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  sdk
-    .shutdown()
+  Promise.all([
+    sdk.shutdown(),
+    loggerProvider.shutdown(),
+  ])
     .then(() => console.log('🛑 OpenTelemetry SDK shut down successfully'))
     .catch((error) => console.error('❌ Error shutting down OpenTelemetry SDK', error))
     .finally(() => process.exit(0));

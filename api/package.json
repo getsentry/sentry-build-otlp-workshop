@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node --import ./instrument-otel.js src/server.js",
     "dev": "nodemon --import ./instrument-otel.js src/server.js",
-    "test": "node --import ./instrument-otel.js src/utils/loadTest.js",
+    "test": "node src/utils/loadTest.js",
     "test:api": "curl -s http://localhost:3000/api/products | json_pp || curl http://localhost:3000/api/products",
     "db:setup": "node src/utils/setupDatabase.js",
     "cache:clear": "node src/utils/clearCache.js",
