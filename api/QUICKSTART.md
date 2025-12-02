@@ -11,34 +11,28 @@
 ### 1. Install Dependencies
 
 ```bash
+# From root
+npm run install:all
+
+# Or from api directory
 npm install
 ```
 
 ### 2. Configure Database
 
-**Option A: Auto-setup with neondb (Recommended)**
-
 ```bash
+# From root
+cp api/.env.example api/.env
+npm run db:init    # Creates Neon database
+npm run db:setup   # Initialize tables and seed data
+
+# Or from api directory
 cp .env.example .env
-npx neondb -y  # Creates Neon database and adds DATABASE_URL to .env
-```
-
-**Option B: Manual setup**
-
-```bash
-cp .env.example .env
-# Add your DATABASE_URL to .env
-```
-
-### 3. Initialize Database
-
-```bash
+npx neondb -y
 npm run db:setup
 ```
 
-Creates tables and seeds sample product data.
-
-### 4. Configure Sentry
+### 3. Configure Sentry
 
 Choose which mode you want to run:
 
@@ -46,7 +40,7 @@ Choose which mode you want to run:
 
 Get your OTLP endpoint from Sentry: **Settings → Projects → [Your Project] → Client Keys → OTLP Configuration**
 
-Edit `.env` and add:
+Edit `api/.env` and add:
 
 ```bash
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://YOUR-ORG.ingest.sentry.io/api/PROJECT-ID/integration/otlp/v1/traces
@@ -57,7 +51,7 @@ OTEL_EXPORTER_OTLP_TRACES_HEADERS=x-sentry-auth=sentry sentry_key=YOUR_PUBLIC_KE
 
 1. Create **2 Sentry projects**: Products and Orders
 2. Get OTLP endpoints for **both** projects
-3. Edit `.env` and add:
+3. Edit `api/.env` and add:
 
 ```bash
 # Products Project
@@ -78,30 +72,34 @@ See [../docs/MULTI_PROJECT_ROUTING.md](../docs/MULTI_PROJECT_ROUTING.md) for det
 **Direct Mode:**
 
 ```bash
+# From root
+npm run demo:direct
+
+# Or from api directory
 npm start
-# or from root: npm run demo:direct
 ```
 
 **Collector Mode:**
 
 ```bash
+# From root
+npm run demo:collector
+
+# Or from api directory
 npm run collector:all
-# or from root: npm run demo:collector
 ```
 
 ## Testing
 
 ```bash
-# Products
-curl http://localhost:3000/api/products
+# Load test (from root - recommended)
+npm run test:api
 
-# Orders
-curl -X POST http://localhost:3000/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{"userId": 1, "items": [{"productId": 1, "quantity": 2}], "paymentMethod": "credit_card"}'
-
-# Load test
+# Or from api directory
 npm test
+
+# Or test manually with curl
+curl http://localhost:3000/api/products
 ```
 
 View traces in Sentry: **Explore** → **Traces**
@@ -120,5 +118,9 @@ View traces in Sentry: **Explore** → **Traces**
 **Port conflicts (collector mode)**
 
 ```bash
+# From root
+npm run collector:cleanup
+
+# Or from api directory
 npm run collector:cleanup
 ```

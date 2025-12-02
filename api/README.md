@@ -4,8 +4,13 @@ Express API demonstrating OpenTelemetry integration with Sentry. See [QUICKSTART
 
 ## Two Modes
 
-**Direct Mode:** `npm start` - Single monolithic service → Sentry
-**Collector Mode:** `npm run collector:all` - Microservices with OTEL Collector routing to separate Sentry projects
+**Direct Mode:** Single monolithic service → Sentry
+- From root: `npm run demo:direct`
+- From api: `npm start`
+
+**Collector Mode:** Microservices with OTEL Collector routing to separate Sentry projects
+- From root: `npm run demo:collector`
+- From api: `npm run collector:all`
 
 ## API Endpoints
 
@@ -36,16 +41,14 @@ GET  /health                 # Health check
 ## Testing
 
 ```bash
-# Products
-curl http://localhost:3000/api/products
+# Load test (from root - recommended)
+npm run test:api
 
-# Create order
-curl -X POST http://localhost:3000/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{"userId": 1, "items": [{"productId": 1, "quantity": 1}], "paymentMethod": "credit_card"}'
-
-# Load test
+# Or from api directory
 npm test
+
+# Or test manually with curl
+curl http://localhost:3000/api/products
 ```
 
 ## Instrumentation
@@ -98,10 +101,20 @@ Routing logic is in `collector-config.yaml`.
 
 ## Key Scripts
 
+**From root:**
 ```bash
-npm start              # Direct mode
-npm run collector:all  # Collector mode (all services)
-npm run collector:stop # Stop collector
-npm run collector:logs # View collector logs
-npm test               # Load test
+npm run demo:direct      # Direct mode
+npm run demo:collector   # Collector mode
+npm run test:api         # Load test
+npm run db:init          # Create Neon database
+npm run db:setup         # Initialize database
+```
+
+**From api directory:**
+```bash
+npm start                # Direct mode
+npm run collector:all    # Collector mode (all services)
+npm run collector:stop   # Stop collector
+npm run collector:logs   # View collector logs
+npm test                 # Load test
 ```

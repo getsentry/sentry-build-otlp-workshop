@@ -147,6 +147,10 @@ Edit `.env` and add all 6 environment variables (3 per project). See example in 
 ### 4. Run Collector Mode
 
 ```bash
+# From root
+npm run demo:collector
+
+# Or from api directory
 cd api
 npm run collector:all
 ```

@@ -59,11 +59,11 @@ Full-stack e-commerce app demonstrating OpenTelemetry backend integration with S
 ### 1. Install & Setup
 
 ```bash
-npm run install:all  # Install all dependencies
-cd api
-cp .env.example .env
-npx neondb -y        # Auto-creates Neon database
-npm run db:setup     # Initialize database
+npm run install:all               # Install all dependencies
+cp api/.env.example api/.env      # Configure API environment
+cp frontend/.env.example frontend/.env  # Configure frontend environment
+npm run db:init                   # Auto-creates Neon database
+npm run db:setup                  # Initialize database
 ```
 
 ### 2. Configure Sentry
@@ -89,21 +89,19 @@ Both modes run on http://localhost:3000
 **Test:**
 
 ```bash
-# Products
-curl http://localhost:3000/api/products
+# Load test (creates products, orders, payments, errors)
+npm run test:api
 
-# Orders
-curl -X POST http://localhost:3000/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{"userId": 1, "items": [{"productId": 1, "quantity": 2}], "paymentMethod": "credit_card"}'
+# Or test manually with curl
+curl http://localhost:3000/api/products
 ```
 
 ### 4. Frontend (Optional)
 
+Frontend `.env` was already configured in step 1. Add your `VITE_SENTRY_DSN` to `frontend/.env`, then:
+
 ```bash
-cd frontend
-cp .env.example .env  # Add VITE_SENTRY_DSN and VITE_API_URL
-npm run dev           # Open http://localhost:5173
+npm run frontend  # Open http://localhost:5173
 ```
 
 ## Key Files
