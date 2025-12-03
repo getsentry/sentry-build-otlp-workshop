@@ -60,17 +60,13 @@ app.get('/', (req, res) => {
 // Proxy helper function
 async function proxyRequest(req, res, targetUrl) {
   try {
-    // Filter out trace propagation headers for workshop demo
-    // This makes each service create independent traces
-    const { traceparent, tracestate, ...headersWithoutTrace } = req.headers;
-
     const response = await axios({
       method: req.method,
       url: targetUrl,
       data: req.body,
       params: req.query,
       headers: {
-        ...headersWithoutTrace,
+        ...req.headers,
         host: new URL(targetUrl).host,
       },
       validateStatus: () => true, // Don't throw on any status

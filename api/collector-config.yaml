@@ -11,7 +11,7 @@ receivers:
 
 connectors:
   routing/traces:
-    default_pipelines: [traces/orders]
+    default_pipelines: [traces/orders]  # Gateway and other services go here
     error_mode: ignore
     table:
       # Products Service
@@ -23,7 +23,7 @@ connectors:
         pipelines: [traces/orders]
 
   routing/logs:
-    default_pipelines: [logs/orders]
+    default_pipelines: [logs/orders]  # Gateway and other services go here
     error_mode: ignore
     table:
       # Products Service

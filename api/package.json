@@ -16,7 +16,7 @@
     "collector:stop": "node scripts/run-collector.js stop",
     "collector:logs": "tail -f .otel-collector/collector.log",
     "collector:health": "curl -s http://localhost:13133 && echo ''",
-    "collector:gateway": "node src/server-gateway.js",
+    "collector:gateway": "node --import ./instrument-otel-gateway.js src/server-gateway.js",
     "collector:products": "OTEL_SERVICE_NAME= node --import ./instrument-otel-products.js src/server-products.js",
     "collector:orders": "OTEL_SERVICE_NAME= node --import ./instrument-otel-orders.js src/server-orders.js",
     "collector:cleanup": "lsof -ti:3000,3001,3002 | xargs kill -9 2>/dev/null || true",
