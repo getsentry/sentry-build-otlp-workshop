@@ -1,0 +1,98 @@
+# OpenTelemetry Collector Configuration - Multi-Project Routing
+# Routes telemetry to separate Sentry projects based on service.name
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+connectors:
+  routing/traces:
+    default_pipelines: [traces/orders]
+    error_mode: ignore
+    table:
+      # Products Service
+      - statement: route() where resource.attributes["service.name"] == "products-service"
+        pipelines: [traces/products]
+
+      # Orders Service
+      - statement: route() where resource.attributes["service.name"] == "orders-service"
+        pipelines: [traces/orders]
+
+  routing/logs:
+    default_pipelines: [logs/orders]
+    error_mode: ignore
+    table:
+      # Products Service
+      - statement: route() where resource.attributes["service.name"] == "products-service"
+        pipelines: [logs/products]
+
+      # Orders Service
+      - statement: route() where resource.attributes["service.name"] == "orders-service"
+        pipelines: [logs/orders]
+
+exporters:
+  # Products Service
+  otlphttp/products-traces:
+    traces_endpoint: ${env:SENTRY_PRODUCTS_TRACES_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_PRODUCTS_AUTH}
+    compression: gzip
+    encoding: proto
+
+  otlphttp/products-logs:
+    logs_endpoint: ${env:SENTRY_PRODUCTS_LOGS_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_PRODUCTS_AUTH}
+    compression: gzip
+    encoding: proto
+
+  # Orders Service
+  otlphttp/orders-traces:
+    traces_endpoint: ${env:SENTRY_ORDERS_TRACES_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_ORDERS_AUTH}
+    compression: gzip
+    encoding: proto
+
+  otlphttp/orders-logs:
+    logs_endpoint: ${env:SENTRY_ORDERS_LOGS_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_ORDERS_AUTH}
+    compression: gzip
+    encoding: proto
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    # Primary pipelines - receive and route
+    traces:
+      receivers: [otlp]
+      exporters: [routing/traces]
+
+    logs:
+      receivers: [otlp]
+      exporters: [routing/logs]
+
+    # Products service pipelines
+    traces/products:
+      receivers: [routing/traces]
+      exporters: [otlphttp/products-traces]
+
+    logs/products:
+      receivers: [routing/logs]
+      exporters: [otlphttp/products-logs]
+
+    # Orders service pipelines
+    traces/orders:
+      receivers: [routing/traces]
+      exporters: [otlphttp/orders-traces]
+
+    logs/orders:
+      receivers: [routing/logs]
+      exporters: [otlphttp/orders-logs]

@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
-import { trace, context } from '@opentelemetry/api';
 
 dotenv.config();
 
@@ -60,48 +59,34 @@ app.get('/', (req, res) => {
 
 // Proxy helper function
 async function proxyRequest(req, res, targetUrl) {
-  const tracer = trace.getTracer('api-gateway');
+  try {
+    // Filter out trace propagation headers for workshop demo
+    // This makes each service create independent traces
+    const { traceparent, tracestate, ...headersWithoutTrace } = req.headers;
 
-  return tracer.startActiveSpan(`proxy ${req.method} ${req.path}`, async (span) => {
-    try {
-      span.setAttribute('http.target', targetUrl);
-      span.setAttribute('proxy.destination', targetUrl);
+    const response = await axios({
+      method: req.method,
+      url: targetUrl,
+      data: req.body,
+      params: req.query,
+      headers: {
+        ...headersWithoutTrace,
+        host: new URL(targetUrl).host,
+      },
+      validateStatus: () => true, // Don't throw on any status
+    });
 
-      // Filter out trace propagation headers for workshop demo
-      // This makes each service create independent traces
-      const { traceparent, tracestate, ...headersWithoutTrace } = req.headers;
+    // Forward the response
+    res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error(`Proxy error for ${targetUrl}:`, error.message);
 
-      const response = await axios({
-        method: req.method,
-        url: targetUrl,
-        data: req.body,
-        params: req.query,
-        headers: {
-          ...headersWithoutTrace,
-          host: new URL(targetUrl).host,
-        },
-        validateStatus: () => true, // Don't throw on any status
-      });
-
-      span.setAttribute('http.status_code', response.status);
-
-      // Forward the response
-      res.status(response.status).json(response.data);
-    } catch (error) {
-      span.recordException(error);
-      span.setAttribute('error', true);
-
-      console.error(`Proxy error for ${targetUrl}:`, error.message);
-
-      res.status(503).json({
-        error: 'Service unavailable',
-        message: `Failed to reach ${targetUrl}`,
-        details: error.message,
-      });
-    } finally {
-      span.end();
-    }
-  });
+    res.status(503).json({
+      error: 'Service unavailable',
+      message: `Failed to reach ${targetUrl}`,
+      details: error.message,
+    });
+  }
 }
 
 // Products service proxy

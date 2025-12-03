@@ -45,14 +45,15 @@ class Logger {
       console.log(`[${severity}] ${message}`, attributes);
       return;
     }
-    
+
     const logRecord = {
       severityNumber,
       severityText: severity,
       body: message,
       attributes: {
         ...attributes,
-        'service.name': 'sentry-build-otlp-workshop-api',
+        // DO NOT manually set service.name here - it's inherited from Resource
+        // The OpenTelemetry SDK automatically attaches resource attributes to logs
       },
       timestamp: Date.now(),
     };

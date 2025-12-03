@@ -16,9 +16,9 @@
     "collector:stop": "node scripts/run-collector.js stop",
     "collector:logs": "tail -f .otel-collector/collector.log",
     "collector:health": "curl -s http://localhost:13133 && echo ''",
-    "collector:gateway": "node --import ./instrument-otel-gateway.js src/server-gateway.js",
-    "collector:products": "node --import ./instrument-otel-products.js src/server-products.js",
-    "collector:orders": "node --import ./instrument-otel-orders.js src/server-orders.js",
+    "collector:gateway": "node src/server-gateway.js",
+    "collector:products": "OTEL_SERVICE_NAME= node --import ./instrument-otel-products.js src/server-products.js",
+    "collector:orders": "OTEL_SERVICE_NAME= node --import ./instrument-otel-orders.js src/server-orders.js",
     "collector:cleanup": "lsof -ti:3000,3001,3002 | xargs kill -9 2>/dev/null || true",
     "collector:all": "npm run collector:cleanup && concurrently -n collector,gateway,products,orders -c blue,green,yellow,magenta \"npm run collector:start\" \"npm run collector:gateway\" \"npm run collector:products\" \"npm run collector:orders\"",
     "collector:help": "echo '\n🚀 Collector Mode (Multi-Project Routing)\n' && echo 'Quick Start (one command):' && echo '  npm run collector:all\n' && echo 'Manual (separate terminals):' && echo '  Terminal 1: npm run collector:start' && echo '  Terminal 2: npm run collector:gateway' && echo '  Terminal 3: npm run collector:products' && echo '  Terminal 4: npm run collector:orders\n' && echo 'Port conflicts?' && echo '  npm run collector:cleanup (kills all services on ports 3000-3002)\n' && echo 'Then access via gateway:' && echo '  http://localhost:3000/api/products' && echo '  http://localhost:3000/api/orders\n'"
