@@ -22,6 +22,10 @@ connectors:
       - statement: route() where resource.attributes["service.name"] == "orders-service"
         pipelines: [traces/orders]
 
+      # Python Inventory Service
+      - statement: route() where resource.attributes["service.name"] == "python-inventory-service"
+        pipelines: [traces/python]
+
   routing/logs:
     default_pipelines: [logs/orders]  # Gateway and other services go here
     error_mode: ignore
@@ -33,6 +37,10 @@ connectors:
       # Orders Service
       - statement: route() where resource.attributes["service.name"] == "orders-service"
         pipelines: [logs/orders]
+
+      # Python Inventory Service
+      - statement: route() where resource.attributes["service.name"] == "python-inventory-service"
+        pipelines: [logs/python]
 
 exporters:
   # Products Service
@@ -62,6 +70,21 @@ exporters:
     logs_endpoint: ${env:SENTRY_ORDERS_LOGS_ENDPOINT}
     headers:
       x-sentry-auth: ${env:SENTRY_ORDERS_AUTH}
+    compression: gzip
+    encoding: proto
+
+  # Python Inventory Service (Optional - Python can send directly to Sentry)
+  otlphttp/python-traces:
+    traces_endpoint: ${env:SENTRY_PYTHON_TRACES_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_PYTHON_AUTH}
+    compression: gzip
+    encoding: proto
+
+  otlphttp/python-logs:
+    logs_endpoint: ${env:SENTRY_PYTHON_LOGS_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_PYTHON_AUTH}
     compression: gzip
     encoding: proto
 
@@ -96,3 +119,12 @@ service:
     logs/orders:
       receivers: [routing/logs]
       exporters: [otlphttp/orders-logs]
+
+    # Python inventory service pipelines
+    traces/python:
+      receivers: [routing/traces]
+      exporters: [otlphttp/python-traces]
+
+    logs/python:
+      receivers: [routing/logs]
+      exporters: [otlphttp/python-logs]

@@ -1,0 +1,17 @@
+# Sentry SDK with OpenTelemetry OTLP integration
+sentry-sdk[opentelemetry-otlp]>=2.19.0
+
+# Web framework
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# OpenTelemetry instrumentation
+opentelemetry-distro>=0.48b0
+opentelemetry-instrumentation-flask>=0.48b0
+opentelemetry-instrumentation-requests>=0.48b0
+
+# Database (to match the Node.js services)
+psycopg2-binary>=2.9.9
+
+# Environment configuration
+python-dotenv>=1.0.0

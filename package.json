@@ -25,7 +25,10 @@
     "direct": "cd api && npm run direct",
     "frontend": "cd frontend && npm run dev",
     "frontend:build": "cd frontend && npm run build",
-    "install:all": "npm install && cd api && npm install && cd ../frontend && npm install",
+    "install:all": "npm install && cd api && npm install && cd ../frontend && npm install && cd ../python-service && ./setup.sh",
+    "python:install": "cd python-service && ./setup.sh",
+    "python:setup": "cp python-service/.env.example python-service/.env",
+    "python": "cd python-service && ./run.sh",
     "test:api": "cd api && npm run test"
   },
   "keywords": [
