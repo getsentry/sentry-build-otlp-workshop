@@ -31,11 +31,19 @@ router.get(
     }
 
     // Cache miss - fetch from database
-    const result = await query(`
-      SELECT id, sku, name, description, price, stock_quantity, image_url, created_at
-      FROM products
-      ORDER BY name
-    `);
+    const result = await withSpan(
+      'db.query.products.fetchAll',
+      async (span) => {
+        span.setAttribute('db.system', 'postgresql');
+        span.setAttribute('db.operation', 'SELECT');
+        span.setAttribute('db.sql.table', 'products');
+        return await query(`
+          SELECT id, sku, name, description, price, stock_quantity, image_url, created_at
+          FROM products
+          ORDER BY name
+        `);
+      }
+    );
 
     const products = result.rows;
 
@@ -84,11 +92,20 @@ router.get(
     }
 
     // Fetch from database
-    const result = await query(
-      `SELECT id, sku, name, description, price, stock_quantity, image_url, created_at
-       FROM products
-       WHERE id = $1`,
-      [productId]
+    const result = await withSpan(
+      'db.query.products.fetchById',
+      async (span) => {
+        span.setAttribute('db.system', 'postgresql');
+        span.setAttribute('db.operation', 'SELECT');
+        span.setAttribute('db.sql.table', 'products');
+        span.setAttribute('product.id', productId);
+        return await query(
+          `SELECT id, sku, name, description, price, stock_quantity, image_url, created_at
+           FROM products
+           WHERE id = $1`,
+          [productId]
+        );
+      }
     );
 
     if (result.rows.length === 0) {

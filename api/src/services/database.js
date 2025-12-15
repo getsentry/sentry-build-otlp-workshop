@@ -24,17 +24,24 @@ pool.on('error', (err) => {
 
 /**
  * Execute a query with automatic connection handling
+ *
+ * NOTE: The OpenTelemetry pg instrumentation only creates pg-pool.connect spans
+ * and does NOT create child pg.query spans. To get detailed query visibility in
+ * Sentry, use withSpan() in your route handlers or create custom spans.
  */
 export async function query(text, params) {
   const start = Date.now();
   const res = await pool.query(text, params);
   const duration = Date.now() - start;
 
-  // Slow queries are already tracked by OpenTelemetry spans
-  // Uncomment below to log them to console as well
-  // if (duration > 1000) {
-  //   console.warn('⚠️  Slow query detected:', { text, duration, rows: res.rowCount });
-  // }
+  // Log slow queries
+  if (duration > 1000) {
+    console.warn('⚠️  Slow query detected:', {
+      duration: `${duration}ms`,
+      query: text.substring(0, 100),
+      rows: res.rowCount,
+    });
+  }
 
   return res;
 }
