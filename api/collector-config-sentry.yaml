@@ -1,0 +1,84 @@
+# =============================================================================
+# OTEL Collector Config - Native Sentry Exporter
+# =============================================================================
+# This configuration uses the new Sentry exporter (from PR #45051) which provides:
+# - Native OTLP forwarding to Sentry
+# - Automatic project routing by service.name
+# - Optional auto-creation of Sentry projects
+# - Organization-level authentication (single auth token for all projects)
+#
+# Required environment variables:
+#   SENTRY_ORG_SLUG    - Your Sentry organization slug
+#   SENTRY_AUTH_TOKEN  - Internal Integration token with project:read/write
+# =============================================================================
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+exporters:
+  # Native Sentry exporter with built-in routing
+  sentry:
+    url: "https://sentry.io"
+    org_slug: "${env:SENTRY_ORG_SLUG}"
+    auth_token: "${env:SENTRY_AUTH_TOKEN}"
+
+    # Auto-create Sentry projects if they don't exist
+    # Projects are created using the service.name attribute as the project slug
+    auto_create_projects: true
+
+    # Routing configuration
+    routing:
+      # Use the service.name resource attribute to determine the target project
+      project_from_attribute: "service.name"
+
+      # Optional: Map service names to different project slugs
+      # If not mapped, the service.name is used directly as the project slug
+      # attribute_to_project_mapping:
+      #   products-service: "ecommerce-products"
+      #   orders-service: "ecommerce-orders"
+      #   api-gateway: "ecommerce-gateway"
+
+    http:
+      timeout: 30s
+
+    sending_queue:
+      enabled: true
+
+  # Debug exporter for local troubleshooting (optional)
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+processors:
+  # Batch processor for better performance
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [sentry]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [sentry]
+
+  telemetry:
+    logs:
+      level: info

@@ -1,11 +1,22 @@
-# This directory stores the OTEL Collector binary and runtime files
+# This directory stores the OTEL Collector binaries and runtime files
 
-The collector binary (otelcol-contrib) is downloaded automatically when you run:
-```
-npm run collector:start
-```
+## Standard Collector (otelcol-contrib)
+Downloaded automatically when you run: `npm run collector:start`
 
-Files in this directory:
-- `otelcol-contrib` - Collector binary (downloaded, ~322MB, not committed)
-- `collector.log` - Runtime logs (not committed)
-- `collector.pid` - Process ID file (not committed)
+## Sentry Exporter Collector (otelcol-sentry)
+Built from the Sentry fork with the native Sentry exporter.
+See: https://github.com/getsentry/opentelemetry-collector-contrib/tree/feat/sentryexporter
+
+To build:
+1. Clone: git clone --branch feat/sentryexporter https://github.com/getsentry/opentelemetry-collector-contrib.git
+2. Generate: cd cmd/otelcontribcol && make genotelcontribcol
+3. Build: go build -o otelcol-sentry .
+4. Copy: cp otelcol-sentry to this directory
+
+## Files in this directory (not committed):
+- `otelcol-contrib` - Standard collector binary (~322MB)
+- `otelcol-sentry` - Sentry exporter collector binary (~460MB)
+- `collector.log` - Standard collector runtime logs
+- `collector-sentry.log` - Sentry collector runtime logs
+- `collector.pid` - Standard collector process ID
+- `collector-sentry.pid` - Sentry collector process ID
