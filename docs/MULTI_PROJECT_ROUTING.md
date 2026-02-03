@@ -1,4 +1,4 @@
-# Multi-Project Routing with OTEL Collector
+# Multi-Project Routing with Sentry Exporter
 
 ## The Challenge
 
@@ -9,31 +9,43 @@ Sentry has a **project-based architecture** where each project has its own OTLP 
 - **Cost Management**: Track costs per service
 - **Access Control**: Project-level permissions
 
-## The Solution: Routing Connector
+## The Solution: Sentry Exporter
 
-The OpenTelemetry Collector's **routing connector** evaluates resource attributes (like `service.name`) and routes telemetry to different pipelines, each with its own Sentry project exporter.
+The **Sentry Exporter** is a native OpenTelemetry Collector exporter that routes telemetry to Sentry projects based on resource attributes (like `service.name`). It simplifies multi-project routing compared to the routing connector approach.
+
+**Key benefits:**
+
+- Single configuration (no per-project exporters)
+- Organization-level authentication (one token for all projects)
+- Automatic project creation (optional)
+- Native Sentry protocol support
 
 ### Architecture
 
 ```
-┌──────────────────┐  ┌──────────────────┐
-│ Products Service │  │  Orders Service  │
-│ service.name:    │  │ service.name:    │
-│ products-service │  │ orders-service   │
-└────────┬─────────┘  └─────────┬────────┘
-         │                      │
-         │ OTLP                 │ OTLP
-         ▼                      ▼
-    ┌────────────────────────────────┐
-    │   OTEL Collector               │
-    │   (Routing Connector)          │
-    └────┬──────────────────┬────────┘
-         │                  │
-         ▼                  ▼
-┌─────────────────┐  ┌─────────────────┐
-│  Sentry Project │  │  Sentry Project │
-│   (Products)    │  │    (Orders)     │
-└─────────────────┘  └─────────────────┘
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│   API Gateway    │  │ Products Service │  │  Orders Service  │
+│ service.name:    │  │ service.name:    │  │ service.name:    │
+│   api-gateway    │  │ products-service │  │  orders-service  │
+└────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
+         │                     │                     │
+         │ OTLP                │ OTLP                │ OTLP
+         ▼                     ▼                     ▼
+    ┌──────────────────────────────────────────────────────┐
+    │           OTEL Collector (Sentry Exporter)           │
+    │                                                      │
+    │   Routes by service.name → Sentry project slug       │
+    │   Auto-creates projects if they don't exist          │
+    └────────────────────────┬─────────────────────────────┘
+                             │ Native Sentry Protocol
+                             ▼
+    ┌─────────────────────────────────────────────────────┐
+    │                      SENTRY                         │
+    │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │
+    │  │ api-gateway │ │  products-  │ │   orders-   │   │
+    │  │   project   │ │   service   │ │   service   │   │
+    │  └─────────────┘ └─────────────┘ └─────────────┘   │
+    └─────────────────────────────────────────────────────┘
 ```
 
 ## Configuration
@@ -41,6 +53,14 @@ The OpenTelemetry Collector's **routing connector** evaluates resource attribute
 ### 1. Services Set service.name
 
 Each service sets a unique `service.name`:
+
+**Gateway** (`instrument-otel-gateway.js`):
+
+```javascript
+const resource = new Resource({
+  [SEMRESATTRS_SERVICE_NAME]: "api-gateway",
+});
+```
 
 **Products Service** (`instrument-otel-products.js`):
 
@@ -60,140 +80,128 @@ const resource = new Resource({
 
 ### 2. Collector Routes by service.name
 
-**Routing Configuration** (`collector-config.yaml`):
+**Sentry Exporter Configuration** (`collector-config-sentry.yaml`):
 
 ```yaml
-connectors:
-  routing/traces:
-    default_pipelines: [traces/orders]
-    table:
-      - statement: route() where attributes["service.name"] == "products-service"
-        pipelines: [traces/products]
-      - statement: route() where attributes["service.name"] == "orders-service"
-        pipelines: [traces/orders]
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
 
 exporters:
-  otlphttp/products-traces:
-    traces_endpoint: ${env:SENTRY_PRODUCTS_TRACES_ENDPOINT}
-    headers:
-      x-sentry-auth: ${env:SENTRY_PRODUCTS_AUTH}
+  sentry:
+    url: "https://sentry.io"
+    org_slug: "${env:SENTRY_ORG_SLUG}"
+    auth_token: "${env:SENTRY_AUTH_TOKEN}"
+    auto_create_projects: true
+    routing:
+      project_from_attribute: "service.name"
 
-  otlphttp/orders-traces:
-    traces_endpoint: ${env:SENTRY_ORDERS_TRACES_ENDPOINT}
-    headers:
-      x-sentry-auth: ${env:SENTRY_ORDERS_AUTH}
+processors:
+  batch:
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [routing/traces]
-
-    traces/products:
-      receivers: [routing/traces]
-      exporters: [otlphttp/products-traces]
-
-    traces/orders:
-      receivers: [routing/traces]
-      exporters: [otlphttp/orders-traces]
+      processors: [batch]
+      exporters: [sentry]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [sentry]
 ```
 
 ### 3. Environment Configuration
 
-Each Sentry project needs its own credentials in `.env`:
+Only two environment variables needed:
 
 ```bash
-# Products Service → Products Sentry Project
-SENTRY_PRODUCTS_TRACES_ENDPOINT=https://o123.ingest.sentry.io/api/456/integration/otlp/v1/traces
-SENTRY_PRODUCTS_LOGS_ENDPOINT=https://o123.ingest.sentry.io/api/456/integration/otlp/v1/logs
-SENTRY_PRODUCTS_AUTH=sentry sentry_key=abc123,sentry_version=7
-
-# Orders Service → Orders Sentry Project
-SENTRY_ORDERS_TRACES_ENDPOINT=https://o123.ingest.sentry.io/api/789/integration/otlp/v1/traces
-SENTRY_ORDERS_LOGS_ENDPOINT=https://o123.ingest.sentry.io/api/789/integration/otlp/v1/logs
-SENTRY_ORDERS_AUTH=sentry sentry_key=def456,sentry_version=7
+SENTRY_ORG_SLUG=your-org-slug
+SENTRY_AUTH_TOKEN=sntrys_eyJ...
 ```
 
-**Note the endpoints:**
+**Getting these values:**
 
-- Include the full path with `/v1/traces` and `/v1/logs`
-- Each project has a different PROJECT-ID (456, 789 in this example)
-- Auth header uses format: `sentry sentry_key=KEY,sentry_version=7`
+1. **Organization slug**: Settings → General Settings, or from URL `https://sentry.io/organizations/{org-slug}/`
+2. **Auth token**: Settings → Developer Settings → Custom Integrations
+   - Create an integration with **Project: Read** and **Project: Write** permissions
 
 ## Setup Steps
 
-### 1. Create Sentry Projects
+### 1. Create Custom Integration
 
-Create 2 separate Sentry projects:
+1. Go to **Settings → Developer Settings → Custom Integrations**
+2. Click **Create New Integration** → choose **Internal Integration**
+3. Set permissions:
+   - **Project: Read** — required for endpoint resolution
+   - **Project: Write** — required for `auto_create_projects`
+4. Copy the auth token
 
-- **Products Project** - for products-service telemetry
-- **Orders Project** - for orders-service telemetry
+### 2. Configure Environment
 
-### 2. Get OTLP Endpoints
+The collector binary (`otelcol-contrib`) is auto-downloaded when you run `npm run demo:sentry`. The Sentry Exporter is included in the standard [otelcol-contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/sentryexporter) distribution.
 
-For **each** project, get the OTLP configuration:
-
-1. Go to Sentry → **Settings** → **Projects** → **[Your Project]**
-2. Click **Client Keys (DSN)** in the sidebar
-3. Scroll to **OTLP Configuration** section
-4. Copy the **traces endpoint** (e.g., `https://o123.ingest.sentry.io/api/456/integration/otlp/v1/traces`)
-5. Copy the **logs endpoint** (e.g., `https://o123.ingest.sentry.io/api/456/integration/otlp/v1/logs`)
-6. Copy the **auth header** value (format: `sentry sentry_key=YOUR_KEY,sentry_version=7`)
-
-### 3. Configure Environment
-
-Edit `.env` and add all 6 environment variables (3 per project). See example in [../api/.env.example](../api/.env.example).
-
-### 4. Run Collector Mode
+Edit `api/.env`:
 
 ```bash
-# From root
-npm run demo:collector
+SENTRY_ORG_SLUG=your-org-slug
+SENTRY_AUTH_TOKEN=sntrys_eyJ...
+```
 
-# Or from api directory
-cd api
-npm run collector:all
+### 3. Run
+
+```bash
+npm run demo:sentry
 ```
 
 This starts:
 
-- OTEL Collector (with routing)
+- OTEL Collector with Sentry Exporter
 - Gateway service (port 3000)
 - Products service (port 3001)
 - Orders service (port 3002)
 
 ## Verification
 
-> **💡 Tip:** You can use the **frontend UI** (http://localhost:5173) to browse products and create orders, which will generate traces across all services. The curl commands below are provided as an alternative for testing without the UI.
+> **💡 Tip:** Use the **frontend UI** (http://localhost:5173) to browse products and create orders, which generates traces across all services.
 
-### Check Products Project
+### Check Sentry Projects
 
-1. Send request:
+1. Send requests:
 
    ```bash
    curl http://localhost:3000/api/products
-   ```
-
-2. Go to **Products Sentry project** → **Explore** → **Traces**
-
-3. You should see:
-   - Trace from `api-gateway` service
-   - Spans from `products-service`
-   - Database queries
-
-### Check Orders Project
-
-1. Send request:
-
-   ```bash
    curl -X POST http://localhost:3000/api/orders \
      -H "Content-Type: application/json" \
      -d '{"userId":1,"items":[{"productId":1,"quantity":1}],"paymentMethod":"credit_card"}'
    ```
 
-2. Go to **Orders Sentry project** → **Explore** → **Traces**
+2. In Sentry, go to **Explore → Traces**
 
-3. You should see:
-   - Trace from `api-gateway` service
-   - Spans from `orders-service`
-   - Database operations, payment processing
+3. You should see separate projects for each service:
+   - `api-gateway`
+   - `products-service`
+   - `orders-service`
+
+Each project contains traces and logs from its respective service, with proper parent-child span relationships across projects.
+
+## Custom Project Mapping
+
+If your service names don't match desired project slugs, use explicit mapping:
+
+```yaml
+exporters:
+  sentry:
+    # ... required fields
+    routing:
+      attribute_to_project_mapping:
+        orders-service: ecommerce-orders
+        products-service: ecommerce-products
+        api-gateway: ecommerce-gateway
+```
+
+Services not in the mapping fall back to using `service.name` as the project slug.

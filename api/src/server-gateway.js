@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import { trace, context } from '@opentelemetry/api';
+import { logger } from './utils/logger.js';
 
 dotenv.config();
 
@@ -28,7 +29,12 @@ app.use((req, res, next) => {
 
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`);
+    logger.info('Request completed', {
+      'http.method': req.method,
+      'http.path': req.path,
+      'http.status_code': res.statusCode,
+      'http.duration_ms': duration,
+    });
   });
 
   next();
@@ -67,17 +73,13 @@ async function proxyRequest(req, res, targetUrl) {
       span.setAttribute('http.target', targetUrl);
       span.setAttribute('proxy.destination', targetUrl);
 
-      // Filter out trace propagation headers for workshop demo
-      // This makes each service create independent traces
-      const { traceparent, tracestate, ...headersWithoutTrace } = req.headers;
-
       const response = await axios({
         method: req.method,
         url: targetUrl,
         data: req.body,
         params: req.query,
         headers: {
-          ...headersWithoutTrace,
+          ...req.headers,
           host: new URL(targetUrl).host,
         },
         validateStatus: () => true, // Don't throw on any status
@@ -85,13 +87,23 @@ async function proxyRequest(req, res, targetUrl) {
 
       span.setAttribute('http.status_code', response.status);
 
+      logger.info('Proxy request completed', {
+        'proxy.target': targetUrl,
+        'http.method': req.method,
+        'http.status_code': response.status,
+      });
+
       // Forward the response
       res.status(response.status).json(response.data);
     } catch (error) {
       span.recordException(error);
       span.setAttribute('error', true);
 
-      console.error(`Proxy error for ${targetUrl}:`, error.message);
+      logger.error('Proxy request failed', {
+        'proxy.target': targetUrl,
+        'http.method': req.method,
+        'error.message': error.message,
+      });
 
       res.status(503).json({
         error: 'Service unavailable',
@@ -118,6 +130,11 @@ app.all('/api/orders*', async (req, res) => {
 
 // 404 handler
 app.use((req, res) => {
+  logger.warn('Route not found', {
+    'http.method': req.method,
+    'http.path': req.path,
+    'http.status_code': 404,
+  });
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.method} ${req.path} not found`,
@@ -127,7 +144,10 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
+  logger.exception(err, {
+    'http.method': req.method,
+    'http.path': req.path,
+  });
   res.status(500).json({
     error: 'Internal Server Error',
     message: err.message
@@ -136,39 +156,33 @@ app.use((err, req, res, next) => {
 
 async function startServer() {
   try {
-    console.log('🚀 Initializing API Gateway...');
-    console.log('');
+    console.log('Initializing API Gateway...');
 
     const server = app.listen(PORT, () => {
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('🚪 API Gateway (Microservices Router)');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log(`📡 Server listening on port ${PORT}`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔗 API URL: http://localhost:${PORT}`);
-      console.log(`💚 Health Check: http://localhost:${PORT}/health`);
-      console.log('');
-      console.log('📊 Routing Configuration:');
-      console.log(`   /api/products/* → ${PRODUCTS_SERVICE_URL}`);
-      console.log(`   /api/orders/*   → ${ORDERS_SERVICE_URL}`);
-      console.log('');
-      console.log('🎯 Architecture:');
-      console.log('   Frontend → Gateway (this) → Microservices → Collector → Sentry');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('');
+      logger.info('API Gateway started', {
+        'server.port': PORT,
+        'server.environment': process.env.NODE_ENV || 'development',
+        'routing.products': PRODUCTS_SERVICE_URL,
+        'routing.orders': ORDERS_SERVICE_URL,
+      });
+      console.log('API Gateway started');
+      console.log(`Server listening on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`Routing: /api/products/* -> ${PRODUCTS_SERVICE_URL}`);
+      console.log(`Routing: /api/orders/* -> ${ORDERS_SERVICE_URL}`);
     });
 
     // Graceful shutdown
     const gracefulShutdown = async (signal) => {
-      console.log(`\n${signal} received. Starting graceful shutdown...`);
+      console.log(`${signal} received. Starting graceful shutdown...`);
 
       server.close(() => {
-        console.log('✅ HTTP server closed');
+        console.log('HTTP server closed');
         process.exit(0);
       });
 
       setTimeout(() => {
-        console.error('❌ Forceful shutdown after timeout');
+        console.error('Forceful shutdown after timeout');
         process.exit(1);
       }, 10000);
     };
@@ -177,7 +191,7 @@ async function startServer() {
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
   } catch (error) {
-    console.error('❌ Failed to start API Gateway:', error);
+    console.error('Failed to start API Gateway:', error);
     process.exit(1);
   }
 }

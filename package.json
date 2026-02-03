@@ -19,7 +19,7 @@
     "collector:stop": "cd api && npm run collector:stop",
     "db:init": "cd api && npx neondb -y",
     "db:setup": "cd api && npm run db:setup",
-    "demo:collector": "echo '\n🚀 COLLECTOR MODE: Starting all microservices...\n' && cd api && npm run collector:all",
+    "demo:collector": "echo '\n🚀 COLLECTOR MODE: Routing connector with per-project DSNs...\n' && cd api && npm run collector:all",
     "demo:direct": "echo '\n🎯 DIRECT MODE: Sending telemetry directly to Sentry\n' && cd api && npm run direct",
     "demo:sentry": "echo '\n✨ SENTRY EXPORTER MODE: Native OTLP with auto-routing...\n' && cd api && npm run sentry:all",
     "sentry:start": "cd api && npm run sentry:start",

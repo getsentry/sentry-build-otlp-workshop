@@ -1,7 +1,7 @@
 # =============================================================================
-# OTEL Collector Config - Native Sentry Exporter
+# OTEL Collector Config - Sentry Exporter
 # =============================================================================
-# This configuration uses the new Sentry exporter (from PR #45051) which provides:
+# This configuration uses the Sentry Exporter which provides:
 # - Native OTLP forwarding to Sentry
 # - Automatic project routing by service.name
 # - Optional auto-creation of Sentry projects
@@ -9,7 +9,9 @@
 #
 # Required environment variables:
 #   SENTRY_ORG_SLUG    - Your Sentry organization slug
-#   SENTRY_AUTH_TOKEN  - Internal Integration token with project:read/write
+#   SENTRY_AUTH_TOKEN  - Custom Integration token with project:read/write
+#
+# Source: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/sentryexporter
 # =============================================================================
 
 receivers:
@@ -51,9 +53,9 @@ exporters:
 
   # Debug exporter for local troubleshooting (optional)
   debug:
-    verbosity: basic
-    sampling_initial: 5
-    sampling_thereafter: 200
+    verbosity: detailed
+    sampling_initial: 10
+    sampling_thereafter: 10
 
 processors:
   # Batch processor for better performance

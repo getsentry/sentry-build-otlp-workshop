@@ -1,51 +1,41 @@
 # OTEL E-Commerce Demo
 
-Full-stack e-commerce app demonstrating OpenTelemetry backend integration with Sentry.
+Full-stack e-commerce app demonstrating OpenTelemetry integration with Sentry.
 
-## Two Integration Modes
+## Integration Modes
 
-1. **Direct Mode**: Single monolithic Express API sending telemetry directly to one Sentry project
-2. **Collector Mode**: Microservices (Gateway + Products + Orders) with OTEL Collector routing each service to separate Sentry projects
+| Mode                | Architecture                               | Sentry Projects  | Auth             |
+| ------------------- | ------------------------------------------ | ---------------- | ---------------- |
+| **Direct**          | Monolith → Sentry                          | 1                | Per-project DSN  |
+| **Collector**       | Microservices → Routing Connector → Sentry | N (pre-created)  | Per-project DSNs |
+| **Sentry Exporter** | Microservices → Sentry Exporter → Sentry   | N (auto-created) | Org-level token  |
 
 **Frontend**: React app with Sentry SDK for distributed tracing and error tracking
 
 ## Architecture
 
-**Direct Mode:**
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed diagrams.
+
+**Direct Mode** — Single service, single project:
 
 ```
 ┌─────────────────┐
-│  Express API    │
-│  (Port 3000)    │
-└────────┬────────┘
-         │ OTLP/HTTP
-         ▼
-┌─────────────────┐
-│ Sentry Project  │
+│  Express API    │ ───OTLP/HTTP───▶ Sentry Project
 └─────────────────┘
 ```
 
-**Collector Mode (Multi-Project Routing):**
+**Collector Mode** — Routing connector with per-project DSNs:
 
 ```
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│   API Gateway    │  │ Products Service │  │  Orders Service  │
-│   (port 3000)    │  │   (port 3001)    │  │   (port 3002)    │
-│                  │  │ service.name:    │  │ service.name:    │
-│                  │  │ products-service │  │ orders-service   │
-└────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
-         │                     │                     │
-         │ OTLP                │ OTLP                │ OTLP
-         ▼                     ▼                     ▼
-    ┌──────────────────────────────────────────────────────┐
-    │           OTEL Collector (Routing Connector)         │
-    └────┬──────────────────────────┬──────────────────────┘
-         │                          │
-         ▼                          ▼
-┌─────────────────┐        ┌─────────────────┐
-│ Sentry Project  │        │ Sentry Project  │
-│   (Products)    │        │    (Orders)     │
-└─────────────────┘        └─────────────────┘
+Services ──OTLP──▶ Collector (Routing Connector) ──▶ Products Project
+                                                 ──▶ Orders Project
+```
+
+**Sentry Exporter Mode** — Native exporter with auto-routing:
+
+```
+Services ──OTLP──▶ Collector (Sentry Exporter) ──▶ Auto-created projects
+                                                   (api-gateway, products-service, orders-service)
 ```
 
 ## Prerequisites
@@ -68,37 +58,33 @@ npm run db:setup                  # Initialize database
 
 ### 2. Configure Sentry
 
-Add your Sentry OTLP endpoint(s) to `api/.env` (see [api/QUICKSTART.md](api/QUICKSTART.md))
+See [QUICKSTART.md](QUICKSTART.md) for detailed setup instructions.
+
+| Mode                | Required Configuration                               |
+| ------------------- | ---------------------------------------------------- |
+| **Direct**          | OTLP endpoint + auth header from one project         |
+| **Collector**       | OTLP endpoints + auth headers from multiple projects |
+| **Sentry Exporter** | Org slug + Custom Integration token                  |
 
 ### 3. Run
 
-**Direct Mode** (single Sentry project):
-
 ```bash
-npm run demo:direct
+npm run demo:direct      # Direct Mode - single project
+npm run demo:collector   # Collector Mode - routing connector
+npm run demo:sentry      # Sentry Exporter - auto-routing
 ```
 
-**Collector Mode** (multi-project routing):
-
-```bash
-npm run demo:collector
-```
-
-Both modes run on http://localhost:3000
+All modes run on http://localhost:3000
 
 **Test:**
 
 ```bash
-# Load test (creates products, orders, payments, errors)
 npm run test:api
-
-# Or test manually with curl
-curl http://localhost:3000/api/products
 ```
 
 ### 4. Frontend (Optional)
 
-Frontend `.env` was already configured in step 1. Add your `VITE_SENTRY_DSN` to `frontend/.env`, then:
+Add your `VITE_SENTRY_DSN` to `frontend/.env`, then:
 
 ```bash
 npm run frontend  # Open http://localhost:5173
@@ -106,14 +92,20 @@ npm run frontend  # Open http://localhost:5173
 
 ## Key Files
 
-**Direct Mode:**
+| Mode                | Key Files                                                         |
+| ------------------- | ----------------------------------------------------------------- |
+| **Direct**          | `instrument-otel.js`, `src/server.js`                             |
+| **Collector**       | `collector-config.yaml`, `scripts/run-collector.js`               |
+| **Sentry Exporter** | `collector-config-sentry.yaml`, `scripts/run-collector-sentry.js` |
 
-- `api/instrument-otel.js` - OTEL SDK instrumentation
-- `api/src/server.js` - Main application server
+**Shared (Collector & Sentry Exporter):**
 
-**Collector Mode:**
+- `instrument-otel-gateway.js` - Gateway service instrumentation
+- `instrument-otel-products.js` - Products service instrumentation
+- `instrument-otel-orders.js` - Orders service instrumentation
 
-- `api/collector-config.yaml` - Collector routing configuration
-- `api/instrument-otel-gateway.js` - Gateway instrumentation
-- `api/instrument-otel-products.js` - Products service instrumentation
-- `api/instrument-otel-orders.js` - Orders service instrumentation
+## Collector Binary
+
+Both Collector Mode and Sentry Exporter Mode use the standard `otelcol-contrib` binary, which is **auto-downloaded** when you run `npm run demo:collector` or `npm run demo:sentry`. No manual build step required.
+
+The Sentry Exporter is included in the upstream [opentelemetry-collector-contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/sentryexporter) distribution.

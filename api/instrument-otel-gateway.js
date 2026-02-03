@@ -14,6 +14,11 @@ import { dirname, join } from 'path';
 
 config();
 
+// In collector mode, delete env vars that would send logs directly to Sentry
+// The OTLPLogExporter reads these even when explicit config is provided
+delete process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT;
+delete process.env.OTEL_EXPORTER_OTLP_LOGS_HEADERS;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -30,17 +35,20 @@ const traceExporter = new OTLPTraceExporter({
   url: 'http://localhost:4318/v1/traces',
 });
 
+// Explicitly set URL and headers to override any OTEL_EXPORTER_OTLP_LOGS_* env vars
+// In collector mode, we send to the local collector, not directly to Sentry
 const logExporter = new OTLPLogExporter({
   url: 'http://localhost:4318/v1/logs',
+  headers: {}, // Empty headers - collector doesn't need auth
 });
 
 // Initialize LoggerProvider
 const loggerProvider = new LoggerProvider({ resource });
 loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(logExporter));
 
-console.log('📡 Mode: MULTI-SERVICE (via COLLECTOR)');
-console.log('📡 Service: api-gateway');
-console.log('📡 Exporting to: http://localhost:4318');
+console.log('Mode: MULTI-SERVICE (via COLLECTOR)');
+console.log('Service: api-gateway');
+console.log('Exporting to: http://localhost:4318');
 
 // Initialize OpenTelemetry SDK
 const sdk = new NodeSDK({
@@ -73,10 +81,10 @@ logsAPI.setGlobalLoggerProvider(loggerProvider);
 // Uncomment for debug logging:
 // diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
-console.log('🔭 OpenTelemetry instrumentation initialized');
-console.log(`📊 Service: ${resource.attributes[SEMRESATTRS_SERVICE_NAME]}`);
-console.log(`🏷️  Version: ${resource.attributes[SEMRESATTRS_SERVICE_VERSION]}`);
-console.log(`🌍 Environment: ${resource.attributes[SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]}`);
+console.log('OpenTelemetry instrumentation initialized');
+console.log(`Service: ${resource.attributes[SEMRESATTRS_SERVICE_NAME]}`);
+console.log(`Version: ${resource.attributes[SEMRESATTRS_SERVICE_VERSION]}`);
+console.log(`Environment: ${resource.attributes[SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]}`);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -84,7 +92,7 @@ process.on('SIGTERM', () => {
     sdk.shutdown(),
     loggerProvider.shutdown(),
   ])
-    .then(() => console.log('🛑 OpenTelemetry SDK shut down successfully'))
-    .catch((error) => console.error('❌ Error shutting down OpenTelemetry SDK', error))
+    .then(() => console.log('OpenTelemetry SDK shut down successfully'))
+    .catch((error) => console.error('Error shutting down OpenTelemetry SDK', error))
     .finally(() => process.exit(0));
 });

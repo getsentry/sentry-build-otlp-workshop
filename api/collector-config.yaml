@@ -1,0 +1,122 @@
+# =============================================================================
+# OTEL Collector Config - Routing Connector
+# =============================================================================
+# This configuration uses the routing connector to route telemetry from
+# different services to different Sentry projects based on service.name.
+#
+# Required environment variables:
+#   SENTRY_PRODUCTS_TRACES_ENDPOINT  - Products project traces endpoint
+#   SENTRY_PRODUCTS_LOGS_ENDPOINT    - Products project logs endpoint
+#   SENTRY_PRODUCTS_AUTH             - Products project auth header
+#   SENTRY_ORDERS_TRACES_ENDPOINT    - Orders project traces endpoint
+#   SENTRY_ORDERS_LOGS_ENDPOINT      - Orders project logs endpoint
+#   SENTRY_ORDERS_AUTH               - Orders project auth header
+#
+# See docs/MULTI_PROJECT_ROUTING.md for setup instructions.
+# =============================================================================
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+exporters:
+  # Products project exporters
+  otlphttp/products-traces:
+    endpoint: ${env:SENTRY_PRODUCTS_TRACES_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_PRODUCTS_AUTH}
+
+  otlphttp/products-logs:
+    endpoint: ${env:SENTRY_PRODUCTS_LOGS_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_PRODUCTS_AUTH}
+
+  # Orders project exporters
+  otlphttp/orders-traces:
+    endpoint: ${env:SENTRY_ORDERS_TRACES_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_ORDERS_AUTH}
+
+  otlphttp/orders-logs:
+    endpoint: ${env:SENTRY_ORDERS_LOGS_ENDPOINT}
+    headers:
+      x-sentry-auth: ${env:SENTRY_ORDERS_AUTH}
+
+  # Debug exporter for troubleshooting
+  debug:
+    verbosity: detailed
+    sampling_initial: 10
+    sampling_thereafter: 10
+
+connectors:
+  # Route traces by service.name
+  routing/traces:
+    default_pipelines: [traces/orders]
+    table:
+      - statement: route() where attributes["service.name"] == "products-service"
+        pipelines: [traces/products]
+      - statement: route() where attributes["service.name"] == "orders-service"
+        pipelines: [traces/orders]
+      - statement: route() where attributes["service.name"] == "api-gateway"
+        pipelines: [traces/orders]
+
+  # Route logs by service.name
+  routing/logs:
+    default_pipelines: [logs/orders]
+    table:
+      - statement: route() where attributes["service.name"] == "products-service"
+        pipelines: [logs/products]
+      - statement: route() where attributes["service.name"] == "orders-service"
+        pipelines: [logs/orders]
+      - statement: route() where attributes["service.name"] == "api-gateway"
+        pipelines: [logs/orders]
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    # Ingest pipeline - receives all telemetry and routes it
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [routing/traces]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [routing/logs]
+
+    # Products project pipelines
+    traces/products:
+      receivers: [routing/traces]
+      exporters: [otlphttp/products-traces]
+
+    logs/products:
+      receivers: [routing/logs]
+      exporters: [otlphttp/products-logs]
+
+    # Orders project pipelines
+    traces/orders:
+      receivers: [routing/traces]
+      exporters: [otlphttp/orders-traces]
+
+    logs/orders:
+      receivers: [routing/logs]
+      exporters: [otlphttp/orders-logs]
+
+  telemetry:
+    logs:
+      level: info
