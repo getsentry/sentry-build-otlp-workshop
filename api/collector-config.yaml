@@ -1,0 +1,64 @@
+# =============================================================================
+# OpenTelemetry Collector Configuration - Sentry Exporter
+# =============================================================================
+# Routes telemetry to Sentry projects based on service.name attribute.
+# Uses native Sentry exporter (included in otelcol-contrib).
+#
+# Setup:
+#   1. Create Sentry Internal Integration with Project:Read, Project:Write, Team:Read
+#   2. Set SENTRY_ORG_SLUG and SENTRY_AUTH_TOKEN in .env
+#   3. Ensure Sentry projects exist matching your service names (or enable auto_create_projects)
+#
+# Service name → Project slug mapping:
+#   products-service → products-service (project)
+#   orders-service   → orders-service (project)
+#   api-gateway      → api-gateway (project)
+# =============================================================================
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+exporters:
+  sentry:
+    url: https://sentry.io
+    org_slug: ${env:SENTRY_ORG_SLUG}
+    auth_token: ${env:SENTRY_AUTH_TOKEN}
+    # Uncomment to auto-create projects (requires Team:Read permission):
+    # auto_create_projects: true
+    #
+    # Optional: Map service names to different project slugs
+    # routing:
+    #   attribute_to_project_mapping:
+    #     products-service: ecommerce-products
+    #     orders-service: ecommerce-orders
+    #     api-gateway: ecommerce-gateway
+
+  # Debug exporter for troubleshooting (optional)
+  debug:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [sentry]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [sentry]

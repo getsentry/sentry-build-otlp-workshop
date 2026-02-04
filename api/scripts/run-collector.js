@@ -215,14 +215,10 @@ async function startCollector() {
     });
   }
 
-  // Check required environment variables
+  // Check required environment variables for Sentry exporter
   const requiredVars = [
-    'SENTRY_PRODUCTS_TRACES_ENDPOINT',
-    'SENTRY_PRODUCTS_LOGS_ENDPOINT',
-    'SENTRY_PRODUCTS_AUTH',
-    'SENTRY_ORDERS_TRACES_ENDPOINT',
-    'SENTRY_ORDERS_LOGS_ENDPOINT',
-    'SENTRY_ORDERS_AUTH'
+    'SENTRY_ORG_SLUG',
+    'SENTRY_AUTH_TOKEN'
   ];
 
   const missingVars = requiredVars.filter(v => !envVars[v]);
@@ -232,24 +228,21 @@ async function startCollector() {
     console.error('');
     missingVars.forEach(v => console.error(`   - ${v}`));
     console.error('');
-    console.error('   Please configure your .env file with Sentry OTLP endpoints.');
+    console.error('   Setup instructions:');
+    console.error('   1. Go to Sentry → Settings → Developer Settings → Custom Integrations');
+    console.error('   2. Create Internal Integration with Project:Read, Project:Write, Team:Read');
+    console.error('   3. Create token and add to .env:');
+    console.error('      SENTRY_ORG_SLUG=your-org-slug');
+    console.error('      SENTRY_AUTH_TOKEN=sntrys_eyJ...');
     console.error('');
     process.exit(1);
   }
 
   console.log('🚀 Starting OpenTelemetry Collector...');
   console.log(`   Config: ${configPath}`);
-  console.log('   Mode: Multi-Project Routing');
-  console.log('   Routes: service.name → Sentry Project');
-  console.log('     - products-service → Products Project');
-  console.log('     - orders-service → Orders Project');
-  console.log('     - api-gateway → Orders Project (default)');
-
-  // Debug: Show configured endpoints
-  console.log('');
-  console.log('📝 Configured Endpoints:');
-  console.log(`   Products: ${envVars.SENTRY_PRODUCTS_TRACES_ENDPOINT ? '✓' : '✗'}`);
-  console.log(`   Orders:   ${envVars.SENTRY_ORDERS_TRACES_ENDPOINT ? '✓' : '✗'}`);
+  console.log('   Exporter: Sentry (native)');
+  console.log(`   Org: ${envVars.SENTRY_ORG_SLUG}`);
+  console.log('   Routing: service.name → Sentry project slug');
   console.log('');
 
   const logStream = createWriteStream(LOG_FILE, { flags: 'a' });
